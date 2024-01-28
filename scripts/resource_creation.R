@@ -805,20 +805,23 @@ globe_layout$rotation_angle <- ifelse(globe_layout$id%in%c(160, 163, 166),
                                       globe_layout$rotation_angle)
 
 # Build world ----
-globe_plates <- combine_geoms(pbapply::pbmapply(
-  hex_maker,
-  hex_type=hex_resources,
-  n_sides = globe_layout$n_vertices,
-  center_x=globe_layout$x,
-  center_y=globe_layout$y,
-  center_z=globe_layout$z,
-  compass_angle=globe_layout$compass_angle,
-  elevation_angle=globe_layout$elevation_angle,
-  rotation_angle=globe_layout$rotation_angle,
-  SIMPLIFY = FALSE
-))
-saveRDS(globe_plates, file="globe_plates.rds")
-globe_plates <- readRDS("globe_plates.rds")
+worldbuilder <- function(){
+  combine_geoms(pbapply::pbmapply(
+    hex_maker,
+    hex_type=hex_resources,
+    n_sides = globe_layout$n_vertices,
+    center_x=globe_layout$x,
+    center_y=globe_layout$y,
+    center_z=globe_layout$z,
+    compass_angle=globe_layout$compass_angle,
+    elevation_angle=globe_layout$elevation_angle,
+    rotation_angle=globe_layout$rotation_angle,
+    SIMPLIFY = FALSE
+  ))
+}
+# globe_plates <- worldbuilder()
+# saveRDS(globe_plates, file="globe_plates.rds")
+# globe_plates <- readRDS("globe_plates.rds")
 
 
 
