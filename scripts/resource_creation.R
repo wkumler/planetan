@@ -38,24 +38,6 @@ cloud_color <- "white"
 
 
 # Functions ----
-cart2sphere <- function(cart_vec){
-  x <- cart_vec[1]
-  y <- cart_vec[2]
-  z <- cart_vec[3]
-  r <- sqrt(x^2+y^2+z^2)
-  phi <- atan2(y, x)
-  theta <- acos(z/r)
-  return(c(r, theta, phi))
-}
-sphere2cart <- function(sphere_vec){
-  r <- sphere_vec[1]
-  theta <- sphere_vec[2]
-  phi <- sphere_vec[3]
-  x <- r*sin(theta)*cos(phi)
-  y <- r*sin(theta)*sin(phi)
-  z <- r*cos(theta)
-  return(c(x, y, z))
-}
 colorParser <- function(color, pepper=0){
   if(pepper){
     colvals <- t(col2rgb(color))

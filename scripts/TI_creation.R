@@ -150,6 +150,37 @@ TI_structure <- list(
   faces = TI_faces[,c("id", "x", "y", "z", "compass_angle", "elevation_angle")]
 )
 
+cart2sphere <- function(cart_vec){
+  x <- cart_vec[1]
+  y <- cart_vec[2]
+  z <- cart_vec[3]
+  r <- sqrt(x^2+y^2+z^2)
+  phi <- atan2(y, x)
+  theta <- acos(z/r)
+  return(c(r, theta, phi))
+}
+sphere2cart <- function(sphere_vec){
+  r <- sphere_vec[1]
+  theta <- sphere_vec[2]
+  phi <- sphere_vec[3]
+  x <- r*sin(theta)*cos(phi)
+  y <- r*sin(theta)*sin(phi)
+  z <- r*cos(theta)
+  return(c(x, y, z))
+}
+# Create initial data for interactable markers
+marker_data_unmoved  <- rbind(
+  cbind(TI_structure$vertices, lab="settlement"),
+  cbind(TI_structure$edges, lab="road"),
+  cbind(TI_structure$faces, lab="faces")
+)
+# Move them slightly outside the globe to improve interactivity
+marker_data_all <- marker_data_unmoved
+marker_data_all[c("x", "y", "z")] <- marker_data_all[c("x", "y", "z")] %>%
+  apply(1, cart2sphere) %>% `+`(c(0.5, 0, 0)) %>% apply(2, sphere2cart) %>%
+  t() %>% setNames(c("x", "y", "z"))
+
+# Create network of nearby structures
 nearby_structures <- list(
   verts = as.data.frame(cbind(
     id=TI_vertices$id,
