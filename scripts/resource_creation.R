@@ -765,32 +765,33 @@ road_maker <- function(coords_1, coords_2, road_color){
 
 
 # Allocate resources and make manual rotations ----
-globe_layout <- cbind(
-  TI_structure$faces, n_vertices=lengths(nearby_structures$faces$nearest_verts)
-)
-resources <- c("wood", "brick", "wool", "wheat", "ore")
-hex_abundances <- rep(resources, c(6, 6, 6, 6, 6))
-hex_resources <- c("snow", sample(hex_abundances), "snow")
-
-globe_layout$rotation_angle <- ifelse(globe_layout$n_vertices==5, 
-                                      globe_layout$compass_angle*6/5-90, 
-                                      globe_layout$compass_angle)
-globe_layout$rotation_angle <- ifelse(globe_layout$n_vertices==5 & 
-                                        globe_layout$elevation_angle > 90,
-                                      globe_layout$rotation_angle+180, 
-                                      globe_layout$rotation_angle)
-globe_layout$rotation_angle <- ifelse(globe_layout$id%in%c(158, 161, 164),
-                                      globe_layout$rotation_angle+45,
-                                      globe_layout$rotation_angle)
-globe_layout$rotation_angle <- ifelse(globe_layout$id%in%c(160, 163, 166),
-                                      globe_layout$rotation_angle-45,
-                                      globe_layout$rotation_angle)
+getRandomGlobeLayout <- function(){
+  globe_layout <- cbind(
+    TI_structure$faces, n_vertices=lengths(nearby_structures$faces$nearest_verts)
+  )
+  globe_layout$rotation_angle <- ifelse(globe_layout$n_vertices==5, 
+                                        globe_layout$compass_angle*6/5-90, 
+                                        globe_layout$compass_angle)
+  globe_layout$rotation_angle <- ifelse(globe_layout$n_vertices==5 & 
+                                          globe_layout$elevation_angle > 90,
+                                        globe_layout$rotation_angle+180, 
+                                        globe_layout$rotation_angle)
+  globe_layout$rotation_angle <- ifelse(globe_layout$id%in%c(158, 161, 164),
+                                        globe_layout$rotation_angle+45,
+                                        globe_layout$rotation_angle)
+  globe_layout$rotation_angle <- ifelse(globe_layout$id%in%c(160, 163, 166),
+                                        globe_layout$rotation_angle-45,
+                                        globe_layout$rotation_angle)
+  resources <- c("wood", "brick", "wool", "wheat", "ore")
+  globe_layout$hex_resources <- c("snow", sample(rep(resources, 6)), "snow")
+  globe_layout
+}
 
 # Build world ----
-worldbuilder <- function(){
+worldbuilder <- function(globe_layout){
   combine_geoms(pbapply::pbmapply(
     hex_maker,
-    hex_type=hex_resources,
+    hex_type=globe_layout$hex_resources,
     n_sides = globe_layout$n_vertices,
     center_x=globe_layout$x,
     center_y=globe_layout$y,
@@ -801,7 +802,9 @@ worldbuilder <- function(){
     SIMPLIFY = FALSE
   ))
 }
-# globe_plates <- worldbuilder()
+worldbuilder <- function(globe_layout){
+  readRDS("globe_plates.rds")
+}
 # saveRDS(globe_plates, file="globe_plates.rds")
 # globe_plates <- readRDS("globe_plates.rds")
 
