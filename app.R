@@ -3,6 +3,7 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
+options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ui <- fillPage(
   uiOutput("visible_screen"),
@@ -21,46 +22,34 @@ server <- function(input, output, session){
   game_begun <- reactiveVal(FALSE)
   failed_login <- reactiveVal(FALSE)
   attempted_to_join_nonexistent_game <- reactiveVal(FALSE)
+  
   player_table <- reactiveVal(NULL)
+  build_list <- reactiveVal(NULL)
+  my_uname <- reactive({
+    if(is.null(input$host_uname)){
+      input$join_uname
+    } else {
+      input$host_uname
+    }
+  })
 
+  
   game_id <- paste(sample(LETTERS, 10), collapse = "")
   game_id <- "ABC"
   game_dir <- paste0("game_files/", game_id, "/")
   dir.create(game_dir)
   saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
+  saveRDS(1, file = paste0(game_dir, "current_player_idx.rds"))
+  
   out_of_date <- reactiveFileReader(100, session, paste0(game_dir, "out_of_date.rds"), readFunc = readRDS)
-  
   observeEvent(out_of_date(), {
-    print("Noticed out of date!")
     player_table(readRDS(paste0(game_dir, "player_table.rds")))
+    # build_list(readRDS(paste0(game_dir, "build_list.rds")))
     game_begun(readRDS(paste0(game_dir, "game_begun.rds")))
+    current_player_idx(readRDS(paste0(game_dir, "current_player_idx.rds")))
+    
     if(game_begun())join_wait(FALSE)
-    print(player_table())
   }, ignoreInit = TRUE)
-  
-  output$visible_screen <- renderUI({
-    if(intro_page()){
-      drawIntroPage()
-    } else if(host_start()){
-      drawHostStartPage()
-    } else if(host_wait()){
-      drawHostWaitPage(game_id = game_id, player_table = player_table())
-    } else if(join_start()){
-      drawJoinStartPage()
-    } else if(join_wait()){
-      drawJoinWaitPage(game_id = game_id, player_table = player_table())
-    } else if(attempted_to_join_nonexistent_game()){
-      drawFailedJoinPage(fail_type="nonexisting", entered_id = input$game_id_entered,
-                         entered_uname=input$join_uname, entered_pwd = input$join_pwd)
-    } else if(failed_login()){
-      drawFailedJoinPage(fail_type="failed login", entered_id = input$game_id_entered,
-                         entered_uname=input$join_uname, entered_pwd = input$join_pwd)
-    } else if(game_begun()){
-      drawGameboard()
-    } else {
-      div()
-    }
-  })
   
   observeEvent(input$new_game_button, {
     intro_page(FALSE)
@@ -77,8 +66,10 @@ server <- function(input, output, session){
     player_table(data.frame(uname=input$host_uname, pwd=input$host_pwd))
     saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
     
-    # Generate the world table here and save
-    # Generate the globe plates here and save
+    # Generate random world
+    globe_layout <- getRandomGlobeLayout()
+    saveRDS(globe_layout, paste0(game_dir, "globe_layout.rds"))
+    saveRDS(worldbuilder(globe_layout), paste0(game_dir, "globe_plates.rds"))
     
     host_wait(TRUE)
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
@@ -88,13 +79,10 @@ server <- function(input, output, session){
     game_id <- input$game_id_entered
     game_dir <- paste0("game_files/", game_id, "/")
     
-    print("New game join attempted")
     attempted_to_join_nonexistent_game(FALSE)
     failed_login(FALSE)
-    print(file.exists(paste0(game_dir, "game_begun.rds")))
-    
+
     if(!dir.exists(game_dir)){
-      print("Attempted to join nonexistent game")
       attempted_to_join_nonexistent_game(TRUE)
     } else {
       if(readRDS(paste0(game_dir, "game_begun.rds"))){
@@ -117,9 +105,6 @@ server <- function(input, output, session){
         saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
         saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
         
-        # Read in world table
-        # Read in globe plates
-        
         join_wait(TRUE)
       }
     }
@@ -129,12 +114,100 @@ server <- function(input, output, session){
     join_wait(FALSE)
     game_begun(TRUE)
     
+    player_table(player_table()[sample(1:nrow(player_table())),])
+    build_list(data.frame(id=numeric(), owner=character()))
+    
+    saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
+    saveRDS(build_list(), paste0(game_dir, "build_list.rds"))
     saveRDS(TRUE, paste0(game_dir, "game_begun.rds"))
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
-    
   }, ignoreInit = TRUE)
+  
+  choose_start_spots <- reactiveVal(TRUE)
+  setup_settle_placed <- reactiveVal(FALSE)
+  setup_road_placed <- reactiveVal(TRUE)
+  current_player_idx <- reactiveVal(1)
+  output$setup_world <- renderPlotly({
+    globe_layout <- readRDS(paste0(game_dir, "globe_layout.rds"))
+    globe_plates <- readRDS(paste0(game_dir, "globe_plates.rds"))
+    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+                     autorange=FALSE, showspikes=FALSE,
+                     showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+    ply <- plot_ly(source = "setup") %>%
+      add_trace(type="mesh3d", data = globe_plates,
+                x=~vertices$x, y=~vertices$y, z=~vertices$z,
+                i=~faces$i, j=~faces$j, k=~faces$k,
+                facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                              maxColorValue = 255),
+                lighting=list(diffuse=1),
+                hoverinfo="none")
+    
+    my_turn <- player_table()$uname[current_player_idx()]==my_uname()
+    if(choose_start_spots() & my_turn){
+      marker_data_labeled <- marker_data_all[marker_data_all$lab=="settlement",]
+      ply <- ply %>%
+        add_trace(type="scatter3d", mode="markers", 
+                  data = marker_data_labeled,
+                  x=~x, y=~y, z=~z, key=~id, text=~lab,
+                  marker=list(
+                    color="white", opacity=0.1, size=50
+                  ),
+                  hoverinfo="text",
+                  hovertemplate=paste0("Build a %{text}?<extra></extra>"))
+    }
+    ply
+  })
+  
+  ed <- reactive(suppressWarnings(event_data(event = "plotly_click", source = "setup")))
+  observeEvent(ed(), {
+    req(ed()$key)
+    print("Noticed click!")
+    
+    clicked_point_id <- as.numeric(ed()$key)
+    clicked_point_data <- marker_data_unmoved[clicked_point_id, ]
+    piece_to_build <- clicked_point_data$lab
+    print(piece_to_build)
+    
+    current_uname <- player_table()$uname[current_player_idx()]
+    build_list(rbind(build_list(), data.frame(clicked_point_id, current_uname)))
+    print(build_list())
+    saveRDS(build_list(), paste0(game_dir, "build_list.rds"))
+    saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
+  })
+  
+  output$visible_screen <- renderUI({
+    if(intro_page()){
+      drawIntroPage()
+    } else if(host_start()){
+      drawHostStartPage()
+    } else if(host_wait()){
+      drawHostWaitPage(game_id = game_id, player_table = player_table())
+    } else if(join_start()){
+      drawJoinStartPage()
+    } else if(join_wait()){
+      drawJoinWaitPage(game_id = game_id, player_table = player_table())
+    } else if(attempted_to_join_nonexistent_game()){
+      drawFailedJoinPage(fail_type="nonexisting", entered_id = input$game_id_entered,
+                         entered_uname=input$join_uname, entered_pwd = input$join_pwd)
+    } else if(failed_login()){
+      drawFailedJoinPage(fail_type="failed login", entered_id = input$game_id_entered,
+                         entered_uname=input$join_uname, entered_pwd = input$join_pwd)
+    } else if(game_begun()){
+      if(choose_start_spots()){
+        my_turn <- player_table()$uname[current_player_idx()]==my_uname()
+        drawSetupSpots(my_uname=my_uname(), my_turn=my_turn)
+      } else if(my_turn()){
+        drawInteractiveBoard()
+      } else {
+        drawDawdleBoard()
+      }
+    } else {
+      div()
+    }
+  })
 }
 
+# sub-functions ----
 drawIntroPage <- function(){
   div(
     class = "center-both",
@@ -212,27 +285,23 @@ drawFailedJoinPage <- function(fail_type, entered_id, entered_uname, entered_pwd
     )
   )
 }
-
-drawGameboard <- function(){
+drawSetupSpots <- function(my_uname, my_turn){
+  welcome_message <- if(my_turn){
+    h3("Choose a starting settlement by clicking on the globe")
+  } else {
+    h3("Waiting for other players to choose starting spots...")
+  }
   tagList(
     sidebarPanel(
-      uiOutput("whoami"),
-      uiOutput("presentcurrentplayer"),
-      h3("Resources available:"),
-      tableOutput("presentplayerresources"),
-      uiOutput("devcarddetails"),
-      uiOutput("buydevcard"),
-      uiOutput("rolldicebutton"),
-      uiOutput("endturnbutton"),
-      checkboxInput(inputId = "showpipvalues", label = "Show pip values?", value = TRUE),
-      checkboxInput(inputId = "debug", label = "Debug enabled?", value = TRUE),
-      textOutput("playervalues")
+      h3(paste0("Welcome to Planetan, ", my_uname, "!")),
+      welcome_message
     ),
     mainPanel(
-      plotlyOutput("world", height = "100vh")
+      plotlyOutput("setup_world", height = "100vh")
     )
   )
 }
 
 # Run app ----
-shinyApp(ui, server)
+# browseURL("127.0.0.1:5013")
+shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
