@@ -786,6 +786,7 @@ getRandomGlobeLayout <- function(){
   globe_layout$hex_resources <- c("snow", sample(rep(resources, 6)), "snow")
   globe_layout
 }
+globe_layout <- getRandomGlobeLayout()
 
 # Build world ----
 worldbuilder <- function(globe_layout){
@@ -802,11 +803,9 @@ worldbuilder <- function(globe_layout){
     SIMPLIFY = FALSE
   ))
 }
-worldbuilder <- function(globe_layout){
-  readRDS("globe_plates.rds")
-}
-# saveRDS(globe_plates, file="globe_plates.rds")
-# globe_plates <- readRDS("globe_plates.rds")
+# globe_plates <- worldbuilder(globe_layout)
+# saveRDS(globe_layout, file="debug_globe_layout.rds")
+# saveRDS(globe_plates, file="debug_globe_plates.rds")
 
 
 

@@ -25,6 +25,7 @@ server <- function(input, output, session){
   
   player_table <- reactiveVal(NULL)
   build_list <- reactiveVal(NULL)
+  built_pieces <- reactiveVal(NULL)
   my_uname <- reactive({
     if(is.null(input$host_uname)){
       input$join_uname
@@ -32,21 +33,27 @@ server <- function(input, output, session){
       input$host_uname
     }
   })
-
+  
+  placing_setup_settlement <- reactiveVal(TRUE)
+  
   
   game_id <- paste(sample(LETTERS, 10), collapse = "")
   game_id <- "ABC"
   game_dir <- paste0("game_files/", game_id, "/")
   dir.create(game_dir)
+  
+  print("Tripping out-of-date from initial server start")
   saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   saveRDS(1, file = paste0(game_dir, "current_player_idx.rds"))
   
   out_of_date <- reactiveFileReader(100, session, paste0(game_dir, "out_of_date.rds"), readFunc = readRDS)
   observeEvent(out_of_date(), {
+    print("Noticed out of date!")
     player_table(readRDS(paste0(game_dir, "player_table.rds")))
-    # build_list(readRDS(paste0(game_dir, "build_list.rds")))
+    build_list(readRDS(paste0(game_dir, "build_list.rds")))
     game_begun(readRDS(paste0(game_dir, "game_begun.rds")))
     current_player_idx(readRDS(paste0(game_dir, "current_player_idx.rds")))
+    built_pieces(readRDS(paste0(game_dir, "built_pieces.rds")))
     
     if(game_begun())join_wait(FALSE)
   }, ignoreInit = TRUE)
@@ -66,12 +73,25 @@ server <- function(input, output, session){
     player_table(data.frame(uname=input$host_uname, pwd=input$host_pwd))
     saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
     
+    build_list(data.frame(id=numeric(), owner=character()))
+    saveRDS(build_list(), paste0(game_dir, "build_list.rds"))
+    
+    empty_built_pieces <- list(
+      vertices=data.frame(x=numeric(),y=numeric(),z=numeric()), 
+      faces=data.frame(i=numeric(),j=numeric(),k=numeric(), color=character())
+    )
+    saveRDS(empty_built_pieces, paste0(game_dir, "built_pieces.rds"))
+    
+    
+    
     # Generate random world
-    globe_layout <- getRandomGlobeLayout()
-    saveRDS(globe_layout, paste0(game_dir, "globe_layout.rds"))
-    saveRDS(worldbuilder(globe_layout), paste0(game_dir, "globe_plates.rds"))
+    # globe_layout <- getRandomGlobeLayout()
+    # saveRDS(globe_layout, paste0(game_dir, "globe_layout.rds"))
+    # saveRDS(worldbuilder(globe_layout), paste0(game_dir, "globe_plates.rds"))
+    
     
     host_wait(TRUE)
+    print("Tripping out-of-date from input$host_ready")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   }, ignoreInit = TRUE)
   observeEvent(input$join_ready_button, {
@@ -103,6 +123,7 @@ server <- function(input, output, session){
           data.frame(uname=input$join_uname, pwd=input$join_pwd))
         )
         saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
+        print("Tripping out-of-date from input$join_ready_button")
         saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
         
         join_wait(TRUE)
@@ -115,11 +136,12 @@ server <- function(input, output, session){
     game_begun(TRUE)
     
     player_table(player_table()[sample(1:nrow(player_table())),])
-    build_list(data.frame(id=numeric(), owner=character()))
-    
     saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
-    saveRDS(build_list(), paste0(game_dir, "build_list.rds"))
+
+    saveRDS(TRUE, paste0(game_dir, 'placing_setup_settlement.rds'))
     saveRDS(TRUE, paste0(game_dir, "game_begun.rds"))
+    
+    print("Tripping out-of-date from input$game_start")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   }, ignoreInit = TRUE)
   
@@ -128,8 +150,8 @@ server <- function(input, output, session){
   setup_road_placed <- reactiveVal(TRUE)
   current_player_idx <- reactiveVal(1)
   output$setup_world <- renderPlotly({
-    globe_layout <- readRDS(paste0(game_dir, "globe_layout.rds"))
-    globe_plates <- readRDS(paste0(game_dir, "globe_plates.rds"))
+    globe_layout <- readRDS("debug_globe_layout.rds")
+    globe_plates <- readRDS("debug_globe_plates.rds")
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
@@ -140,25 +162,58 @@ server <- function(input, output, session){
                 facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
                               maxColorValue = 255),
                 lighting=list(diffuse=1),
-                hoverinfo="none")
+                hoverinfo="none") %>%
+      add_trace(type="mesh3d", data = built_pieces(),
+                x=~vertices$x, y=~vertices$y, z=~vertices$z,
+                i=~faces$i, j=~faces$j, k=~faces$k,
+                facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                              maxColorValue = 255),
+                lighting=list(diffuse=1),
+                hoverinfo="none") %>%
+      layout(scene=list(
+        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+        aspectmode='cube',
+        camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+        bgcolor="black"
+      ),
+      margin=list(l=0, r=0, b=0, t=0, pad=0),
+      showlegend=FALSE) %>%
+      config(displayModeBar = FALSE)
     
+
     my_turn <- player_table()$uname[current_player_idx()]==my_uname()
     if(choose_start_spots() & my_turn){
-      marker_data_labeled <- marker_data_all[marker_data_all$lab=="settlement",]
+      placing_setup_settlement <- readRDS(paste0(game_dir, 'placing_setup_settlement.rds'))
+      if(placing_setup_settlement){
+        print("Attempting to render settlement markers")
+        marker_data_labeled <- marker_data_all[marker_data_all$lab=="settlement",]
+        # Update the above to be only those that are unbuilt!!
+        
+        
+        saveRDS(FALSE, paste0(game_dir, 'placing_setup_settlement.rds'))
+      } else {
+        print("Attempting to render road markers")
+        print(build_list())
+        last_built_settlement_idx <- nearby_structures$verts$id==tail(build_list(), 1)$id
+        setup_nearby_roads <- nearby_structures$verts[last_built_settlement_idx,]$nearest_edges[[1]]
+        marker_data_labeled <- marker_data_all[marker_data_all$id%in%setup_nearby_roads,]
+        
+        # Advance player turn eventually
+        
+        saveRDS(TRUE, paste0(game_dir, 'placing_setup_settlement.rds'))
+      }
+      # print(build_list())
+      # print(marker_data_labeled)
       ply <- ply %>%
-        add_trace(type="scatter3d", mode="markers", 
-                  data = marker_data_labeled,
-                  x=~x, y=~y, z=~z, key=~id, text=~lab,
-                  marker=list(
-                    color="white", opacity=0.1, size=50
-                  ),
-                  hoverinfo="text",
+        add_trace(type="scatter3d", mode="markers", data = marker_data_labeled, 
+                  x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
+                  marker=list(color="white", opacity=0.1, size=50),
                   hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     }
     ply
   })
   
-  ed <- reactive(suppressWarnings(event_data(event = "plotly_click", source = "setup")))
+  ed <- reactive(event_data(event = "plotly_click", source = "setup"))
   observeEvent(ed(), {
     req(ed()$key)
     print("Noticed click!")
@@ -169,9 +224,11 @@ server <- function(input, output, session){
     print(piece_to_build)
     
     current_uname <- player_table()$uname[current_player_idx()]
-    build_list(rbind(build_list(), data.frame(clicked_point_id, current_uname)))
-    print(build_list())
-    saveRDS(build_list(), paste0(game_dir, "build_list.rds"))
+    new_build_list <- rbind(build_list(), data.frame(id=clicked_point_id, owner=current_uname))
+    saveRDS(new_build_list, paste0(game_dir, "build_list.rds"))
+    addPieceToFixed(game_dir, clicked_point_id, current_uname)
+
+    print("Tripping out-of-date from ed()")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   })
   
@@ -301,6 +358,15 @@ drawSetupSpots <- function(my_uname, my_turn){
     )
   )
 }
+addPieceToFixed <- function(game_dir, clicked_point_id, current_uname){
+  print("Adding piece to fixed list")
+  built_pieces <- readRDS(paste0(game_dir, "built_pieces.rds"))
+  piece_to_build <- marker_data_unmoved[marker_data_all$id==clicked_point_id,]
+  new_piece <- piece_maker(piece_to_build$lab, piece_to_build)
+  built_pieces <- combine_geoms(list(built_pieces, new_piece))
+  saveRDS(built_pieces, paste0(game_dir, "built_pieces.rds"))
+}
+
 
 # Run app ----
 # browseURL("127.0.0.1:5013")
