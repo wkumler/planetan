@@ -187,8 +187,10 @@ server <- function(input, output, session){
       if(placing_setup_settlement){
         print("Attempting to render settlement markers")
         marker_data_labeled <- marker_data_all[marker_data_all$lab=="settlement",]
-        # Update the above to be only those that are unbuilt!!
         
+        nearby_spots <- nearby_structures$verts[nearby_structures$verts$id%in%build_list()$id,]
+        illegal_spots <- unique(c(build_list()$id, unlist(nearby_spots)))
+        marker_data_labeled <- marker_data_labeled[!marker_data_labeled$id%in%illegal_spots,]
         
         saveRDS(FALSE, paste0(game_dir, 'placing_setup_settlement.rds'))
       } else {
@@ -197,8 +199,6 @@ server <- function(input, output, session){
         last_built_settlement_idx <- nearby_structures$verts$id==tail(build_list(), 1)$id
         setup_nearby_roads <- nearby_structures$verts[last_built_settlement_idx,]$nearest_edges[[1]]
         marker_data_labeled <- marker_data_all[marker_data_all$id%in%setup_nearby_roads,]
-        
-        # Advance player turn eventually
         
         saveRDS(TRUE, paste0(game_dir, 'placing_setup_settlement.rds'))
       }
@@ -213,12 +213,12 @@ server <- function(input, output, session){
     ply
   })
   
-  ed <- reactive(event_data(event = "plotly_click", source = "setup"))
-  observeEvent(ed(), {
-    req(ed()$key)
+  ed_setup <- reactive(event_data(event = "plotly_click", source = "setup"))
+  observeEvent(ed_setup(), {
+    req(ed_setup()$key)
     print("Noticed click!")
     
-    clicked_point_id <- as.numeric(ed()$key)
+    clicked_point_id <- as.numeric(ed_setup()$key)
     clicked_point_data <- marker_data_unmoved[clicked_point_id, ]
     piece_to_build <- clicked_point_data$lab
     print(piece_to_build)
@@ -227,8 +227,23 @@ server <- function(input, output, session){
     new_build_list <- rbind(build_list(), data.frame(id=clicked_point_id, owner=current_uname))
     saveRDS(new_build_list, paste0(game_dir, "build_list.rds"))
     addPieceToFixed(game_dir, clicked_point_id, current_uname)
+    
+    if(piece_to_build=="road"){
+      builds_per_person <- nrow(new_build_list)/(2*nrow(player_table()))
+      print(builds_per_person)
+      if(builds_per_person<1){
+        current_player_idx(current_player_idx()+1)
+      } else if(builds_per_person==1){
+        current_player_idx(current_player_idx())
+      } else if(builds_per_person < 2){
+        current_player_idx(current_player_idx()-1)
+      } else {
+        setup_complete(TRUE)
+      }
+      print(current_player_idx())
+    }
 
-    print("Tripping out-of-date from ed()")
+    print("Tripping out-of-date from ed_setup()")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   })
   
