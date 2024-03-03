@@ -34,6 +34,7 @@ server <- function(input, output, session){
     }
   })
   
+  choose_start_spots <- reactiveVal(TRUE)
   placing_setup_settlement <- reactiveVal(TRUE)
   
   
@@ -45,6 +46,7 @@ server <- function(input, output, session){
   print("Tripping out-of-date from initial server start")
   saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   saveRDS(1, file = paste0(game_dir, "current_player_idx.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "choose_start_spots.rds"))
   
   out_of_date <- reactiveFileReader(100, session, paste0(game_dir, "out_of_date.rds"), readFunc = readRDS)
   observeEvent(out_of_date(), {
@@ -54,6 +56,7 @@ server <- function(input, output, session){
     game_begun(readRDS(paste0(game_dir, "game_begun.rds")))
     current_player_idx(readRDS(paste0(game_dir, "current_player_idx.rds")))
     built_pieces(readRDS(paste0(game_dir, "built_pieces.rds")))
+    choose_start_spots(readRDS(paste0(game_dir, "choose_start_spots.rds")))
     
     if(game_begun())join_wait(FALSE)
   }, ignoreInit = TRUE)
@@ -81,7 +84,6 @@ server <- function(input, output, session){
       faces=data.frame(i=numeric(),j=numeric(),k=numeric(), color=character())
     )
     saveRDS(empty_built_pieces, paste0(game_dir, "built_pieces.rds"))
-    
     
     
     # Generate random world
@@ -140,14 +142,14 @@ server <- function(input, output, session){
 
     saveRDS(TRUE, paste0(game_dir, 'placing_setup_settlement.rds'))
     saveRDS(TRUE, paste0(game_dir, "game_begun.rds"))
+    saveRDS(FALSE, paste0(game_dir, "choose_setup_spots.rds"))
     
     print("Tripping out-of-date from input$game_start")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   }, ignoreInit = TRUE)
   
-  choose_start_spots <- reactiveVal(TRUE)
   setup_settle_placed <- reactiveVal(FALSE)
-  setup_road_placed <- reactiveVal(TRUE)
+  setup_road_placed <- reactiveVal(FALSE)
   current_player_idx <- reactiveVal(1)
   output$setup_world <- renderPlotly({
     globe_layout <- readRDS("debug_globe_layout.rds")
@@ -229,8 +231,9 @@ server <- function(input, output, session){
     addPieceToFixed(game_dir, clicked_point_id, current_uname)
     
     if(piece_to_build=="road"){
+      print(paste("Player idx before iteration:", current_player_idx()))
       builds_per_person <- nrow(new_build_list)/(2*nrow(player_table()))
-      print(builds_per_person)
+      print(paste("Builds per person:", builds_per_person))
       if(builds_per_person<1){
         current_player_idx(current_player_idx()+1)
       } else if(builds_per_person==1){
@@ -238,9 +241,11 @@ server <- function(input, output, session){
       } else if(builds_per_person < 2){
         current_player_idx(current_player_idx()-1)
       } else {
-        setup_complete(TRUE)
+        current_player_idx(1)
+        saveRDS(FALSE, paste0(game_dir, "choose_start_spots.rds")) 
       }
-      print(current_player_idx())
+      print(paste("Player idx after iteration:", current_player_idx()))
+      saveRDS(current_player_idx(), paste0(game_dir, "current_player_idx.rds")) 
     }
 
     print("Tripping out-of-date from ed_setup()")
