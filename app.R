@@ -34,9 +34,12 @@ server <- function(input, output, session){
       input$host_uname
     }
   })
-  
+
+  globe_layout <- reactiveVal(TRUE)
   choose_start_spots <- reactiveVal(TRUE)
   placing_setup_settlement <- reactiveVal(TRUE)
+  
+  dice_rolled <- reactiveVal(FALSE)
   
   game_id <- paste(sample(LETTERS, 10), collapse = "")
   game_id <- "ABC"
@@ -46,6 +49,8 @@ server <- function(input, output, session){
   saveRDS(1, file = paste0(game_dir, "current_player_idx.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "choose_start_spots.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "player_resources.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "globe_layout.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "globe_plates.rds"))
   print("Tripping out-of-date from initial server start")
   saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   
@@ -59,6 +64,7 @@ server <- function(input, output, session){
     current_player_idx(readRDS(paste0(game_dir, "current_player_idx.rds")))
     built_pieces(readRDS(paste0(game_dir, "built_pieces.rds")))
     choose_start_spots(readRDS(paste0(game_dir, "choose_start_spots.rds")))
+    globe_layout(readRDS(paste0(game_dir, "globe_layout.rds")))
     
     if(game_begun())join_wait(FALSE)
   }, ignoreInit = TRUE)
@@ -87,11 +93,16 @@ server <- function(input, output, session){
     )
     saveRDS(empty_built_pieces, paste0(game_dir, "built_pieces.rds"))
     
+    # Speed debug things up by copying over instead of generating from scratch
+    globe_layout(readRDS("debug_globe_layout.rds")) # Just for debug
+    built_world <- readRDS("debug_globe_plates.rds") # Just for debug
+    # In actual gameplay, do this:
+    # globe_layout(getRandomGlobeLayout())
+    # built_world <- worldbuilder(globe_layout())
     
-    # Generate random world
-    # globe_layout <- getRandomGlobeLayout()
-    # saveRDS(globe_layout, paste0(game_dir, "globe_layout.rds"))
-    # saveRDS(worldbuilder(globe_layout), paste0(game_dir, "globe_plates.rds"))
+    saveRDS(globe_layout(), paste0(game_dir, "globe_layout.rds"))
+    saveRDS(built_world, paste0(game_dir, "globe_plates.rds"))
+
     
     
     host_wait(TRUE)
@@ -157,8 +168,7 @@ server <- function(input, output, session){
   setup_road_placed <- reactiveVal(FALSE)
   current_player_idx <- reactiveVal(1)
   output$setup_world <- renderPlotly({
-    globe_layout <- readRDS("debug_globe_layout.rds")
-    globe_plates <- readRDS("debug_globe_plates.rds")
+    globe_plates <- readRDS(paste0(game_dir, "globe_plates.rds"))
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
@@ -211,7 +221,7 @@ server <- function(input, output, session){
       # print(build_list())
       # print(marker_data_labeled)
       ply <- ply %>%
-        add_trace(type="scatter3d", mode="markers", data = marker_data_labeled, 
+        add_trace(type="scatter3d", mode="markers", data = marker_data_labeled,
                   x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
                   marker=list(color="white", opacity=0.1, size=50),
                   hovertemplate=paste0("Build a %{text}?<extra></extra>"))
@@ -245,22 +255,20 @@ server <- function(input, output, session){
       } else {
         current_player_idx(1)
         saveRDS(FALSE, paste0(game_dir, "choose_start_spots.rds"))
-        
-        # After all startup spots are placed, allocate initial resources
-        print(player_resources())
-        p_res <- as.matrix(player_resources()[,2:6])
-        rownames(p_res) <- player_resources()$uname
+
         player_faces <- merge(build_list()[build_list()$id<60,], nearby_structures$verts)
         player_faces <- player_faces[(nrow(player_faces)/2+1):nrow(player_faces),]
         player_faces <- data.frame(owner=rep(player_faces$owner, each=3), 
                                    id=unlist(player_faces$nearest_faces))
-        alloc_res <- merge(player_faces, globe_layout)[,c("id", "owner", "hex_resources")]
-        for(i in seq_len(nrow(alloc_res))){
-          p_res[alloc_res$owner[i], alloc_res$hex_resources[i]] <- 
-            p_res[alloc_res$owner[i], alloc_res$hex_resources[i]]+1
-        }
+        init_res <- merge(player_faces, globe_layout())[,c("id", "owner", "hex_resources")]
+        
+        # After all startup spots are placed, allocate initial resources
+        new_p_resources <- editResources(player_resources(), init_res)
+        player_resources(new_p_resources)
+        saveRDS(player_resources(), paste0(game_dir, "player_resources.rds"))
+
         print("Initial resources:")
-        print(p_res)
+        print(player_resources())
       }
       saveRDS(current_player_idx(), paste0(game_dir, "current_player_idx.rds")) 
     }
@@ -270,13 +278,12 @@ server <- function(input, output, session){
   })
   
   output$game_world <- renderPlotly({
-    globe_layout <- readRDS("debug_globe_layout.rds")
     globe_plates <- readRDS("debug_globe_plates.rds")
     print("Rendering game world")
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-    ply <- plot_ly(source = "game") %>%
+    ply <- plot_ly(source = "gameboard") %>%
       add_trace(type="mesh3d", data = globe_plates,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
@@ -302,36 +309,100 @@ server <- function(input, output, session){
       config(displayModeBar = FALSE)
     
     cur_uname <- player_table()$uname[current_player_idx()]
-    if(cur_uname==my_uname()){
-      print(paste("Calculating build spots for player", cur_uname))
-      player_built_spots <- build_list()[build_list()$owner==cur_uname,]
-      player_struct <- merge(player_built_spots, rbind(nearby_structures$verts, nearby_structures$edges))
-      player_struct <- merge(player_struct, marker_data_all)
-      nearby_spots_ids <- unlist(player_struct$nearest_edges)
+    if(cur_uname==my_uname() & dice_rolled()){
+      open_spots <- getOpenSpots(build_list(), cur_uname)
+
+      # Remove road entries if player doesn't have enough for a road
+      if(player_resources()$wood[current_player_idx()] < 1 | 
+         player_resources()$brick[current_player_idx()] < 1){
+        open_spots <- setdiff(open_spots, 61:150)
+      }
+      # Remove settlement entries if player doesn't have enough for settlement
+      if(player_resources()$wood[current_player_idx()] < 1 | 
+         player_resources()$brick[current_player_idx()] < 1 |
+         player_resources()$wool[current_player_idx()] < 1 | 
+         player_resources()$wheat[current_player_idx()] < 1){
+        open_spots <- setdiff(open_spots, 1:60)
+      }
       
-      too_close_verts <- merge(build_list(), marker_data_all[,c("id", "lab")])
-      too_close_verts <- too_close_verts[too_close_verts$lab!="road",]
-      too_close_verts <- unlist(merge(too_close_verts, nearby_structures$verts)$nearest_verts)
-      
-      
-      illegal_spots <- unique(c(build_list()$id, too_close_verts))
-      open_spots <- setdiff(nearby_spots_ids, illegal_spots)
+      print("Adding clickables to globe")
       marker_data_labeled <- marker_data_all[marker_data_all$id%in%open_spots,]
-      
       ply <- ply %>%
         add_trace(type="scatter3d", mode="markers", data = marker_data_labeled, 
                   x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
                   marker=list(color="white", opacity=0.1, size=50),
-                  hovertemplate=paste0("Build a %{text}?<extra></extra>"))
+                  hovertemplate=paste0("Build a %{text}?<extra></extra>")
+                  )
     }
     ply
   })
   ed_game <- reactive(event_data(event = "plotly_click", source = "gameboard"))
-  observeEvent(ed_setup(), {
-    ### FILL THIS IN NEXT
+  observeEvent(ed_game(), {
+    req(ed_game()$key)
+    print("Noticed click on the globe!")
+    
+    clicked_point_id <- as.numeric(ed_game()$key)
+    print(paste("Clicked point:", clicked_point_id))
+    clicked_point_data <- marker_data_unmoved[clicked_point_id, ]
+    piece_to_build <- clicked_point_data$lab
+    
+    current_uname <- player_table()$uname[current_player_idx()]
+    new_build_list <- rbind(build_list(), data.frame(id=clicked_point_id, owner=current_uname))
+    saveRDS(new_build_list, paste0(game_dir, "build_list.rds"))
+    addPieceToFixed(game_dir, clicked_point_id, current_uname)
+    
+    print("Spending resources")
+    print(player_resources())
+    if(clicked_point_data$lab=="road"){
+      hex_resources=c("brick", "wood")
+    } else if(clicked_point_data$lab=="settlement") {
+      hex_resources=c("brick", "wood", "sheep", "wheat")
+    }
+    resource_df <- data.frame(owner=current_uname, hex_resources)
+    new_resources <- editResources(player_resources(), resource_df, delta = -1)
+    player_resources(new_resources)
+    print(player_resources())
+    saveRDS(player_resources(), paste0(game_dir, "player_resources.rds"))
+    
+    print("Tripping out-of-date from ed_game()")
+    saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
+  })
+  
+  observeEvent(input$rolldice, {
+    print("Rolling dice")
+    dice_rolled(TRUE)
+    rolled_num <- sample(1:6, 1)+sample(1:6, 1)
+    print(paste("Number rolled:", rolled_num))
+    if(rolled_num==7){
+      # Trigger robber behavior
+    } else {
+      simple_layout <- globe_layout()[,c("id", "hex_resources", "pip")]
+      chosen_faces <- simple_layout[simple_layout$pip==rolled_num,]$id
+      chosen_verts <- nearby_structures$faces$nearest_verts[nearby_structures$faces$id%in%chosen_faces]
+      chosen_df <- data.frame(face_id=rep(chosen_faces, lengths(chosen_verts)), vert_id=unlist(chosen_verts))
+      resource_df <- merge(build_list()[build_list()$id%in%unlist(chosen_verts),], chosen_df, by.x = "id", by.y = "vert_id")
+      resource_df <- merge(resource_df, simple_layout, by.x="face_id", by.y="id")
+      resource_df <- resource_df[,c("id", "owner", "hex_resources")]
+      
+      new_resources <- editResources(player_resources(), resource_df)
+      player_resources(new_resources)
+      print(player_resources())
+      saveRDS(player_resources(), paste0(game_dir, "player_resources.rds"))
+    }
+    print("Tripping out-of-date from rolldicebutton")
+    saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
+  })
+  observeEvent(input$finishturn, {
+    print("Ending turn...")
+    dice_rolled(FALSE)
+    next_player <- current_player_idx()%%nrow(player_table())+1
+    saveRDS(next_player, file = paste0(game_dir, "current_player_idx.rds"))
+    print("Tripping out-of-date from endturnbutton")
+    saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   })
   
   output$visible_screen <- renderUI({
+    print("Re-rendering visible screen")
     if(intro_page()){
       drawIntroPage()
     } else if(host_start()){
@@ -354,10 +425,25 @@ server <- function(input, output, session){
         drawSetupSpots(my_uname=my_uname(), my_turn=my_turn)
       } else {
         print("Drawing gameboard")
+        ### HOW TO GET THIS TO RUN MORE FREQUENTLY AND UPDATE ON MAP CLICK (AND DICE ROLL? CHECK)
+        ### Right now resources are not updating upon build?
         drawGameboard(my_uname=my_uname(), my_turn=my_turn, player_res=player_resources())
       }
     } else {
       div()
+    }
+  })
+  output$endturnbutton <- renderUI({
+    if(my_uname()==player_table()$uname[current_player_idx()] & dice_rolled()){
+      actionButton(inputId = "finishturn", "End turn", width = "100%")
+    }
+  })
+  output$rolldicebutton <- renderUI({
+    cur_uname <- player_table()$uname[current_player_idx()]
+    if(my_uname()!=cur_uname){
+      h4(paste0("It's ", cur_uname, "'s turn"))
+    } else if(!dice_rolled()){
+      actionButton(inputId = "rolldice", "Roll dice", width = "100%")
     }
   })
 }
@@ -461,7 +547,9 @@ drawGameboard <- function(my_uname, my_turn, player_res){
     sidebarPanel(
       h3(paste0("Welcome to Planetan, ", my_uname, "!")),
       h3("Current resources:"),
-      renderTable(player_res)
+      renderTable(player_res),
+      uiOutput("rolldicebutton"),
+      uiOutput("endturnbutton")
     ),
     mainPanel(
       plotlyOutput("game_world", height = "100vh")
@@ -476,7 +564,36 @@ addPieceToFixed <- function(game_dir, clicked_point_id, current_uname){
   built_pieces <- combine_geoms(list(built_pieces, new_piece))
   saveRDS(built_pieces, paste0(game_dir, "built_pieces.rds"))
 }
-
+getOpenSpots <- function(build_list, cur_uname){
+  print(paste("Calculating build spots for player", cur_uname))
+  player_built_spots <- build_list[build_list$owner==cur_uname,]
+  player_struct <- merge(player_built_spots, rbind(nearby_structures$verts, nearby_structures$edges))
+  player_struct <- merge(player_struct, marker_data_all)
+  
+  psb_roads <- unlist(player_struct$nearest_edges)
+  psb_roads <- setdiff(psb_roads, build_list$id)
+  
+  psb_verts <- unlist(player_struct$nearest_verts[player_struct$lab=="road"])
+  psb_verts <- setdiff(psb_verts, build_list$id)
+  psb_verts <- setdiff(psb_verts, unlist(nearby_structures$verts$nearest_verts[nearby_structures$verts$id%in%build_list$id]))
+  
+  c(psb_roads, psb_verts)
+}
+editResources <- function(player_resources, alloc_res, delta=1){
+  p_res <- as.matrix(player_resources[,2:6])
+  rownames(p_res) <- player_resources$uname
+  # print(p_res)
+  for(i in seq_len(nrow(alloc_res))){
+    if(alloc_res$hex_resources[i]=="snow"){
+      print("Allocating snow")
+      next
+    }
+    p_res[alloc_res$owner[i], alloc_res$hex_resources[i]] <-
+      p_res[alloc_res$owner[i], alloc_res$hex_resources[i]]+delta
+  }
+  p_res <- as.data.frame(p_res)
+  cbind(uname=player_resources$uname, p_res)
+}
 
 # Run app ----
 # browseURL("127.0.0.1:5013")
