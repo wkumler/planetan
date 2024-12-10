@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+
+game_files/*

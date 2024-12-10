@@ -14,3 +14,7 @@ body {
 .center-content {
   text-align: center;
 }
+
+.btn-default {
+  width: 100%;
+}
