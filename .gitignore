@@ -4,3 +4,4 @@
 .Ruserdata
 
 game_files/*
+!game_files/existing_game_ids.rds
