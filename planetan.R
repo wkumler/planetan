@@ -147,7 +147,7 @@ server <- function(input, output, session){
         wellPanel(
           h3("Waiting for players"),
           h3(paste("Game ID:", input$game_id)),
-          h3(paste("Current players:", paste(init_player_list()(), collapse = ", "))),
+          h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
           actionButton("game_start", "Start game!")
         )
       )
@@ -166,7 +166,7 @@ server <- function(input, output, session){
           wellPanel(
             h3("Waiting for host to start game"),
             h3(paste("Game ID:", input$game_id)),
-            h3(paste("Current players:", paste(init_player_list()(), collapse = ", ")))
+            h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", ")))
           )
         )
         return(join_waiting_div)
@@ -203,7 +203,7 @@ server <- function(input, output, session){
     saveRDS(c(existing_game_ids, input$game_id), "game_files/existing_game_ids.rds")
     dir.create(paste0("game_files/", input$game_id))
     setGameData("game_status", "players_joining")
-    setGameData("init_player_list", input$uname)
+    setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     
     init_player_list(reactiveFileReader(
       intervalMillis = 100, 
@@ -214,25 +214,6 @@ server <- function(input, output, session){
   })
   observeEvent(input$join_game_button, {
     login_status("join_existing_game")
-  })
-  observeEvent(input$game_start, {
-    # When "Start game!" button is clicked:
-    # Create player_table and write to RDS
-    # Decide who goes first and write out player_table in order
-    # Set login status to "success" so all login_status steps get skipped
-    # Set game_status to "setup"
-    print("Starting game!")
-    login_status("success")
-    setGameData("game_status", "setup")
-    
-    player_table <- matrix() #### THIS IS WHERE I LEFT OFF DEFINING PLAYER TABLE
-    
-    game_status(reactiveFileReader(
-      intervalMillis = 100, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
-      readFunc = readRDS
-    ))
   })
   observeEvent(input$attempt_join_button, {
     print(paste("Attempting to join game ID", input$game_id))
@@ -253,7 +234,9 @@ server <- function(input, output, session){
     # If the game HAS been started then we want to test for membership in the
     # player_table and compare password
     if(getGameData("game_status")=="players_joining"){
-      setGameData("init_player_list", c(getGameData("init_player_list"), input$uname))
+      player_table_static <- getGameData("init_player_list")
+      new_player_table_static <- rbind(player_table_static, c("uname"=input$uname, "pwd"=input$pwd))
+      setGameData("init_player_list", new_player_table_static)
       login_status("join_waiting")
       
       # Initialize observer so that we can see updates to the player list while waiting
@@ -272,12 +255,24 @@ server <- function(input, output, session){
         readFunc = readRDS
       ))
     } else {
-      # Single static read here is ok because we're being triggered by button click
-      # not by any action from other clients
-      player_table_static <- getGameData("player_table")
-      if(input$uname%in%rownames(player_table_static)){
-        if(input$pwd==player_table_static[input$uname,"pwd"]){
+      # Single static read of final_player_table here is ok because we're being 
+      # triggered by button click not by any action from other clients
+
+      # Do still need to initialize a reactive game_status for returning players
+      # Don't need to initialize a reactive init_player_list 
+      # because we never observe the player list changing if logging in this way
+      final_player_table_static <- getGameData("final_player_table")
+      
+      if(input$uname%in%final_player_table_static$uname){
+        player_row <- which(final_player_table_static$uname==input$uname)
+        if(input$pwd==final_player_table_static$pwd[player_row]){
           login_status("success")
+          game_status(reactiveFileReader(
+            intervalMillis = 100, 
+            session = session, 
+            filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
+            readFunc = readRDS
+          ))
         } else {
           login_status("join_game_failed")
         }
@@ -285,6 +280,23 @@ server <- function(input, output, session){
         login_status("join_game_failed")
       }
     }
+  })
+  observeEvent(input$game_start, {
+    # When "Start game!" button is clicked:
+    # Create player_table and write to RDS
+    # Decide who goes first and write out player_table in order
+    # Set login status to "success" so all login_status steps get skipped
+    # Set game_status to "setup"
+    print("Starting game!")
+    login_status("success")
+    setGameData("game_status", "setup")
+    setGameData("final_player_table", init_player_list()())
+    game_status(reactiveFileReader(
+      intervalMillis = 100, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
+      readFunc = readRDS
+    ))
   })
 }
 
