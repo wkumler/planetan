@@ -40,6 +40,7 @@ server <- function(input, output, session){
   placing_setup_settlement <- reactiveVal(TRUE)
   
   dice_rolled <- reactiveVal(FALSE)
+  trade_offered <- reactiveVal(FALSE)
   
   game_id <- paste(sample(LETTERS, 10), collapse = "")
   game_id <- "ABC"
@@ -48,10 +49,13 @@ server <- function(input, output, session){
   
   saveRDS(1, file = paste0(game_dir, "current_player_idx.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "choose_start_spots.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "player_table.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "player_resources.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "build_list.rds"))
+  saveRDS(TRUE, file = paste0(game_dir, "built_pieces.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "globe_layout.rds"))
   saveRDS(TRUE, file = paste0(game_dir, "globe_plates.rds"))
-  print("Tripping out-of-date from initial server start")
+  saveRDS(FALSE, file = paste0(game_dir, "game_begun.rds"))
   saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
   
   out_of_date <- reactiveFileReader(100, session, paste0(game_dir, "out_of_date.rds"), readFunc = readRDS)
@@ -70,6 +74,10 @@ server <- function(input, output, session){
   }, ignoreInit = TRUE)
   
   observeEvent(input$new_game_button, {
+    
+    
+    
+    
     intro_page(FALSE)
     host_start(TRUE)
   }, ignoreInit = TRUE)
@@ -153,12 +161,12 @@ server <- function(input, output, session){
     player_table(player_table()[sample(1:nrow(player_table())),])
     saveRDS(player_table(), paste0(game_dir, "player_table.rds"))
     
-    player_resources(data.frame(uname=player_table()$uname, wood=0, brick=0, wool=0, wheat=0, ore=0))
+    player_resources(data.frame(uname=player_table()$uname, wood=5, brick=5, wool=5, wheat=5, ore=5))
     saveRDS(player_resources(), paste0(game_dir, "player_resources.rds"))
     
     saveRDS(TRUE, paste0(game_dir, 'placing_setup_settlement.rds'))
     saveRDS(TRUE, paste0(game_dir, "game_begun.rds"))
-    saveRDS(FALSE, paste0(game_dir, "choose_setup_spots.rds"))
+    saveRDS(TRUE, paste0(game_dir, "choose_start_spots.rds"))
     
     print("Tripping out-of-date from input$game_start")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
@@ -168,6 +176,8 @@ server <- function(input, output, session){
   setup_road_placed <- reactiveVal(FALSE)
   current_player_idx <- reactiveVal(1)
   output$setup_world <- renderPlotly({
+    print("Rendering world setup spots")
+    
     globe_plates <- readRDS(paste0(game_dir, "globe_plates.rds"))
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
@@ -328,11 +338,10 @@ server <- function(input, output, session){
       print("Adding clickables to globe")
       marker_data_labeled <- marker_data_all[marker_data_all$id%in%open_spots,]
       ply <- ply %>%
-        add_trace(type="scatter3d", mode="markers", data = marker_data_labeled, 
+        add_trace(type="scatter3d", mode="markers", data = marker_data_labeled,
                   x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
                   marker=list(color="white", opacity=0.1, size=50),
-                  hovertemplate=paste0("Build a %{text}?<extra></extra>")
-                  )
+                  hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     }
     ply
   })
@@ -356,7 +365,7 @@ server <- function(input, output, session){
     if(clicked_point_data$lab=="road"){
       hex_resources=c("brick", "wood")
     } else if(clicked_point_data$lab=="settlement") {
-      hex_resources=c("brick", "wood", "sheep", "wheat")
+      hex_resources=c("brick", "wood", "wool", "wheat")
     }
     resource_df <- data.frame(owner=current_uname, hex_resources)
     new_resources <- editResources(player_resources(), resource_df, delta = -1)
@@ -384,6 +393,7 @@ server <- function(input, output, session){
       resource_df <- merge(resource_df, simple_layout, by.x="face_id", by.y="id")
       resource_df <- resource_df[,c("id", "owner", "hex_resources")]
       
+      print("Granting resources")
       new_resources <- editResources(player_resources(), resource_df)
       player_resources(new_resources)
       print(player_resources())
@@ -399,6 +409,9 @@ server <- function(input, output, session){
     saveRDS(next_player, file = paste0(game_dir, "current_player_idx.rds"))
     print("Tripping out-of-date from endturnbutton")
     saveRDS(runif(1), file = paste0(game_dir, "out_of_date.rds"))
+  })
+  observeEvent(input$offertradebutton, {
+    launch_trade_offer_well(TRUE)
   })
   
   output$visible_screen <- renderUI({
@@ -420,22 +433,39 @@ server <- function(input, output, session){
       drawFailedJoinPage(fail_type="failed login", entered_id = input$game_id_entered,
                          entered_uname=input$join_uname, entered_pwd = input$join_pwd)
     } else if(game_begun()){
+      player_table(readRDS(paste0(game_dir, "player_table.rds")))
+      player_resources(readRDS(paste0(game_dir, "player_resources.rds")))
+      build_list(readRDS(paste0(game_dir, "build_list.rds")))
+      game_begun(readRDS(paste0(game_dir, "game_begun.rds")))
+      current_player_idx(readRDS(paste0(game_dir, "current_player_idx.rds")))
+      built_pieces(readRDS(paste0(game_dir, "built_pieces.rds")))
+      choose_start_spots(readRDS(paste0(game_dir, "choose_start_spots.rds")))
+      globe_layout(readRDS(paste0(game_dir, "globe_layout.rds")))
+      
       my_turn <- player_table()$uname[current_player_idx()]==my_uname()
       if(choose_start_spots()){
+        print(my_uname())
+        print(my_turn)
         drawSetupSpots(my_uname=my_uname(), my_turn=my_turn)
       } else {
         print("Drawing gameboard")
-        ### HOW TO GET THIS TO RUN MORE FREQUENTLY AND UPDATE ON MAP CLICK (AND DICE ROLL? CHECK)
-        ### Right now resources are not updating upon build?
-        drawGameboard(my_uname=my_uname(), my_turn=my_turn, player_res=player_resources())
+        tagList(
+          sidebarPanel(
+            h3(paste0("Welcome to Planetan, ", my_uname(), "!")),
+            h3("Current resources:"),
+            renderTable(player_resources()),
+            uiOutput("rolldicebutton"),
+            uiOutput("endturnbutton"),
+            uiOutput("offertradebutton"),
+            uiOutput("tradeoffered")
+          ),
+          mainPanel(
+            plotlyOutput("game_world", height = "100vh")
+          )
+        )
       }
     } else {
       div()
-    }
-  })
-  output$endturnbutton <- renderUI({
-    if(my_uname()==player_table()$uname[current_player_idx()] & dice_rolled()){
-      actionButton(inputId = "finishturn", "End turn", width = "100%")
     }
   })
   output$rolldicebutton <- renderUI({
@@ -444,6 +474,26 @@ server <- function(input, output, session){
       h4(paste0("It's ", cur_uname, "'s turn"))
     } else if(!dice_rolled()){
       actionButton(inputId = "rolldice", "Roll dice", width = "100%")
+    }
+  })
+  output$endturnbutton <- renderUI({
+    if(my_uname()==player_table()$uname[current_player_idx()] & dice_rolled()){
+      actionButton(inputId = "finishturn", "End turn", width = "100%")
+    }
+  })
+  output$offertradebutton <- renderUI({
+    if(my_uname()==player_table()$uname[current_player_idx()] & dice_rolled()){
+      actionButton(inputId = "offertrade", "Offer a trade", width = "100%")
+    }
+  })
+  output$offertradepanel <- renderUI({
+    if(launch_trade_offer_well() & my_uname()==player_table()$uname[current_player_idx()]){
+      wellPanel(
+        column(6, h4("Offer what?"),
+               fluidRow(p("Wood"), numericInput(inputId = "n_wood_desired")),
+               ),
+        column(6, h4("Accept what?"))
+      )
     }
   })
 }
@@ -539,20 +589,6 @@ drawSetupSpots <- function(my_uname, my_turn){
     ),
     mainPanel(
       plotlyOutput("setup_world", height = "100vh")
-    )
-  )
-}
-drawGameboard <- function(my_uname, my_turn, player_res){
-  tagList(
-    sidebarPanel(
-      h3(paste0("Welcome to Planetan, ", my_uname, "!")),
-      h3("Current resources:"),
-      renderTable(player_res),
-      uiOutput("rolldicebutton"),
-      uiOutput("endturnbutton")
-    ),
-    mainPanel(
-      plotlyOutput("game_world", height = "100vh")
     )
   )
 }
