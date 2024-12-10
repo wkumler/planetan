@@ -32,6 +32,7 @@ server <- function(input, output, session){
   current_player <- reactiveVal(function(){})
   
   output$visible_screen <- renderUI({
+    print("Rendering visible screen!")
     if(login_status()=="startup"){
       print("Returning startup_div")
       startup_div <- div(
@@ -176,16 +177,16 @@ server <- function(input, output, session){
         return(join_waiting_div)
       }
     }
-    
-    # At this point we switch to using game_status()() instead of login_status()
-    # to manage state because login_status() should be "success" for everyone
-    # Initial game_status()() is "setup"
     current_player(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
       readFunc = readRDS
     ))
+    
+    # At this point we switch to using game_status()() instead of login_status()
+    # to manage state because login_status() should be "success" for everyone
+    # Initial game_status()() is "setup"
     print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
       
