@@ -24,8 +24,9 @@ server <- function(input, output, session){
   }
   
   login_status <- reactiveVal("startup")
-  init_player_list <- reactiveVal(NULL)
+  init_player_list <- reactiveVal(function(){})
   game_status <- reactiveVal(function(){})
+  current_player <- reactiveVal(function(){})
   
   output$visible_screen <- renderUI({
     if(login_status()=="startup"){
@@ -173,6 +174,20 @@ server <- function(input, output, session){
       }
     }
     
+    # At this point we switch to using game_status()() instead of login_status()
+    # to manage state because login_status() should be "success" for everyone
+    # Initial game_status()() is "setup"
+    current_player(reactiveFileReader(
+      intervalMillis = 100, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
+      readFunc = readRDS
+    ))
+    print(paste("First player up is:", current_player()()))
+    if(game_status()()=="setup"){
+      
+    }
+    
     div(
       class = "center-both",
       wellPanel(
@@ -182,11 +197,11 @@ server <- function(input, output, session){
   })
 
   observeEvent(input$new_game_button, {
-    print("New game requested")
+    print("input$new_game_button clicked")
     login_status("make_new_game")
   })
   observeEvent(input$host_ready_button, {
-    print("Host is ready")
+    print("input$host_ready_button clicked")
     # When "Start hosting!" button is clicked:
     # Create the game files
     # Set login_status to "host_waiting"
@@ -213,9 +228,11 @@ server <- function(input, output, session){
     ))
   })
   observeEvent(input$join_game_button, {
+    print("input$join_game_button clicked")
     login_status("join_existing_game")
   })
   observeEvent(input$attempt_join_button, {
+    print("input$attempt_join_button clicked")
     print(paste("Attempting to join game ID", input$game_id))
     if(!input$game_id%in%readRDS("game_files/existing_game_ids.rds")){
       login_status("game_id_not_found")
@@ -224,6 +241,7 @@ server <- function(input, output, session){
     }
   })
   observeEvent(input$provide_login_info, {
+    print("input$provide_login_info clicked")
     # Perform a single static check for game_status to see whether the game
     # has been started or not
     # If it HAS NOT been started (e.g. input$game_start says "players_joining" 
@@ -247,7 +265,7 @@ server <- function(input, output, session){
         readFunc = readRDS
       ))
       # Initialize observer so that we can see when game_status.rds changes to "setup"
-      # This observation doesn't happen here but instead above in XXXX section
+      # This observation doesn't happen here but instead above in input$game_start section
       game_status(reactiveFileReader(
         intervalMillis = 100, 
         session = session, 
@@ -267,6 +285,8 @@ server <- function(input, output, session){
         player_row <- which(final_player_table_static$uname==input$uname)
         if(input$pwd==final_player_table_static$pwd[player_row]){
           login_status("success")
+          # Initialize observer so that we can see when game_status.rds changes to "setup"
+          # This observation doesn't happen here but instead below in input$game_start section
           game_status(reactiveFileReader(
             intervalMillis = 100, 
             session = session, 
@@ -282,6 +302,7 @@ server <- function(input, output, session){
     }
   })
   observeEvent(input$game_start, {
+    print("input$game_start clicked")
     # When "Start game!" button is clicked:
     # Create player_table and write to RDS
     # Decide who goes first and write out player_table in order
@@ -289,14 +310,15 @@ server <- function(input, output, session){
     # Set game_status to "setup"
     print("Starting game!")
     login_status("success")
-    setGameData("game_status", "setup")
     setGameData("final_player_table", init_player_list()())
+    setGameData("game_status", "setup")
     game_status(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
       readFunc = readRDS
     ))
+    setGameData("current_player", sample(init_player_list()()$uname, 1))
   })
 }
 
