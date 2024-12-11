@@ -2,7 +2,7 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
-options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
+# options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ui <- fillPage(
   uiOutput("visible_screen"),
