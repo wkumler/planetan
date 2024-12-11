@@ -25,16 +25,16 @@ ui <- fillPage(
 )
 
 server <- function(input, output, session){
-  getGameData <- function(rds_obj_name){
+  getGameData <- function(rds_obj_name, print_value=TRUE){
     print(paste("Reading", rds_obj_name, "in from file"))
     value <- readRDS(paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
-    # print(paste("Value:", value))
+    if(print_value)print(paste("Value:", value))
     return(value)
   }
-  setGameData <- function(rds_obj_name, value){
+  setGameData <- function(rds_obj_name, value, print_value=TRUE){
     print(paste("Saving", rds_obj_name, "into file"))
     saveRDS(value, paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
-    print(paste("Value:", value))
+    if(print_value)print(paste("Value:", value))
     return(NULL)
   }
   
@@ -267,22 +267,23 @@ server <- function(input, output, session){
     # Set login_status to "host_waiting"
     # Redirect to page with current players
     
+    # Ensure new game IDs are saved AFTER checking whether ID is taken :p
     if(input$game_id%in%readRDS("game_files/existing_game_ids.rds")){
       login_status("game_id_taken")
       return(NULL)
     }
+    login_status("host_waiting")
 
-    # Ensure new game IDs are saved AFTER checking whether ID is taken :p
     existing_game_ids <- readRDS("game_files/existing_game_ids.rds")
     saveRDS(c(existing_game_ids, input$game_id), "game_files/existing_game_ids.rds")
     dir.create(paste0("game_files/", input$game_id))
     setGameData("game_status", "players_joining")
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     
-    globe_layout <- getRandomGlobeLayout()
-    built_world <- worldbuilder(globe_layout)
-    setGameData("globe_layout", globe_layout)
-    setGameData("globe_plates", built_world)
+    resource_layout <- getRandomGlobeLayout()
+    built_world <- worldbuilder(resource_layout)
+    setGameData("resource_layout", resource_layout, print_value = FALSE)
+    setGameData("globe_plates", built_world, print_value = FALSE)
     
     init_player_list(reactiveFileReader(
       intervalMillis = 100, 
@@ -290,7 +291,6 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
       readFunc = readRDS
     ))
-    login_status("host_waiting")
   })
   observeEvent(input$join_game_button, {
     print("input$join_game_button clicked")
@@ -380,6 +380,10 @@ server <- function(input, output, session){
     print("Starting game!")
     login_status("success")
     setGameData("final_player_table", init_player_list()())
+    setGameData("current_player", sample(init_player_list()()$uname, 1))
+    setGameData("marker_data_all", marker_data_all, print_value = FALSE)
+    setGameData("marker_data_unmoved", marker_data_unmoved, print_value = FALSE)
+    setGameData("nearby_structures", nearby_structures, print_value = FALSE)
     setGameData("game_status", "setup")
     game_status(reactiveFileReader(
       intervalMillis = 100, 
@@ -387,7 +391,6 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
       readFunc = readRDS
     ))
-    setGameData("current_player", sample(init_player_list()()$uname, 1))
   })
   observeEvent(input$build_here, {
     print("input$build_here clicked")
@@ -396,7 +399,7 @@ server <- function(input, output, session){
   
   output$game_world <- renderPlotly({
     print("Re-rendering game_world")
-    globe_plates <- getGameData("globe_plates")
+    globe_plates <- getGameData("globe_plates", print_value = FALSE)
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
@@ -417,6 +420,12 @@ server <- function(input, output, session){
       margin=list(l=0, r=0, b=0, t=0, pad=0),
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
+    
+    ply <- ply %>%
+      add_trace(type="scatter3d", mode="markers", data = marker_data_labeled,
+                x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
+                marker=list(color="white", opacity=0.1, size=50),
+                hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
@@ -436,7 +445,7 @@ server <- function(input, output, session){
   })
   output$game_world_static <- renderPlotly({
     print("Re-rendering static game_world")
-    globe_plates <- getGameData("globe_plates")
+    globe_plates <- getGameData("globe_plates", print_value = FALSE)
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
