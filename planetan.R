@@ -46,6 +46,7 @@ server <- function(input, output, session){
   init_player_list <- reactiveVal(function(){})
   game_status <- reactiveVal(function(){})
   current_player <- reactiveVal(function(){})
+  build_list <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -215,6 +216,12 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
       readFunc = readRDS
     ))
+    build_list(reactiveFileReader(
+      intervalMillis = 100, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
+      readFunc = readRDS
+    ))
     
     # At this point we switch to using game_status()() instead of login_status()
     # to manage state because login_status() should be "success" for everyone
@@ -227,7 +234,8 @@ server <- function(input, output, session){
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3("Choose a starting location by clicking on the globe."),
-            actionButton("build_here", label = "Build here?", disabled = TRUE)
+            actionButton("build_here", label = "Build here?", disabled = TRUE),
+            tableOutput("build_info")
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh")
@@ -255,6 +263,9 @@ server <- function(input, output, session){
       )
     )
   })
+  output$build_info <- renderTable({
+    build_list()()
+  })
   
   observeEvent(input$new_game_button, {
     print("input$new_game_button clicked")
@@ -279,6 +290,7 @@ server <- function(input, output, session){
     dir.create(paste0("game_files/", input$game_id))
     setGameData("game_status", "players_joining")
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
+    setGameData("build_list", data.frame(id=numeric(), owner=character(), build=character()))
     
     resource_layout <- getRandomGlobeLayout()
     built_world <- worldbuilder(resource_layout)
@@ -396,6 +408,10 @@ server <- function(input, output, session){
     print("input$build_here clicked")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
+    print(build_spot)
+    
+    new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_spot$lab)
+    setGameData("build_list", rbind(build_list()(), new_build))
 
     piece_data <- piece_maker("settlement", build_spot, color = "red")
     # Piece_data returns columns for
@@ -408,14 +424,21 @@ server <- function(input, output, session){
     #               maxColorValue = 255),
     # lighting=list(diffuse=1),
     # hoverinfo="none"
-    print(nvert_globe_plates)
+    table_of_builds <- table(build_list()()$build)
+    n_build_offset <- sum(
+      table_of_builds["city"]*80, 
+      table_of_builds["settlement"]*20, 
+      table_of_builds["road"]*10, # CHANGE THIS IF ROADS ARE REFINED
+      na.rm = TRUE
+    )
+    print(n_build_offset)
     newtrace <- list(
       x=list(as.list(piece_data$vertices$x)), 
       y=list(as.list(piece_data$vertices$y)), 
       z=list(as.list(piece_data$vertices$z)),
-      i=list(as.list(piece_data$faces$i+nvert_globe_plates)),
-      j=list(as.list(piece_data$faces$j+nvert_globe_plates)), 
-      k=list(as.list(piece_data$faces$k+nvert_globe_plates)),
+      i=list(as.list(piece_data$faces$i+nvert_globe_plates+n_build_offset)),
+      j=list(as.list(piece_data$faces$j+nvert_globe_plates+n_build_offset)), 
+      k=list(as.list(piece_data$faces$k+nvert_globe_plates+n_build_offset)),
       facecolor=list(as.list("red")) # not currently working
     )
     # newtrace <- list(
@@ -472,8 +495,32 @@ server <- function(input, output, session){
     ply <- ply %>%
       add_trace(type="scatter3d", mode="markers", data = settlement_spots,
                 x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
-                marker=list(color="white", opacity=0.001, size=50), # apparently opacity=0 doesn't work
+                marker=list(color="white", opacity=0.001, size=50), 
+                # apparently opacity=0 doesn't work lmao and returns 1
                 hovertemplate=paste0("Build a %{text}?<extra></extra>"))
+    
+    if(nrow(build_list()())>0){
+      cumulative_offset <- 0
+      for(i in seq_len(nrow(build_list()()))){
+        row_i <- build_list()()[i,]
+        new_row <- marker_data_all[marker_data_all$id==row_i$id,]
+        piece_data <- piece_maker(row_i$build, new_row)
+        newtrace <- list(
+          x=list(as.list(piece_data$vertices$x)), 
+          y=list(as.list(piece_data$vertices$y)), 
+          z=list(as.list(piece_data$vertices$z)),
+          i=list(as.list(piece_data$faces$i+nvert_globe_plates+cumulative_offset)),
+          j=list(as.list(piece_data$faces$j+nvert_globe_plates+cumulative_offset)), 
+          k=list(as.list(piece_data$faces$k+nvert_globe_plates+cumulative_offset)),
+          facecolor=list(as.list("red")) # not currently working
+        )
+        
+        plotlyProxy("game_world") %>%
+          plotlyProxyInvoke("extendTraces", newtrace, list(0))
+        cumulative_offset <- cumulative_offset + switch(row_i$build, city=80, settlement=20, road=10)
+      }
+    }
+    
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
@@ -481,7 +528,7 @@ server <- function(input, output, session){
     req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("game_world clicked!")
     print(ed())
-    # Safe to delete trace 1 if it doesn't exist
+    # Safe to delete trace 2 if it doesn't exist
     # I need some way of managing what traces have been added and in what order
     # Trace stack will consist of intermixed markers and meshes
     # Meshes will accumulate over time (or max out at two of them?) but not be removed
@@ -490,12 +537,10 @@ server <- function(input, output, session){
     
     # Initially, trace 0 is the globe and trace 1 is the markers added afterward
     
-    plotlyProxy("game_world") %>%
-      plotlyProxyInvoke("deleteTraces", 2) # Remove colored trace if it exists
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", 2) # Remove colored trace if it exists
     newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
                      mode = "markers", marker=list(color="red", opacity=0.2, size=50))
-    plotlyProxy("game_world") %>%
-      plotlyProxyInvoke("addTraces", newtrace)
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here", label = "Build here?", disabled = FALSE)
   })
