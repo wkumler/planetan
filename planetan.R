@@ -421,8 +421,11 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
+    marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
+    settlement_spots <- marker_data_all[marker_data_all$lab=="settlement",]
+    
     ply <- ply %>%
-      add_trace(type="scatter3d", mode="markers", data = marker_data_labeled,
+      add_trace(type="scatter3d", mode="markers", data = settlement_spots,
                 x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
                 marker=list(color="white", opacity=0.1, size=50),
                 hovertemplate=paste0("Build a %{text}?<extra></extra>"))
