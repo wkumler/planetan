@@ -4,6 +4,21 @@ library(plotly)
 source("scripts/resource_creation.R")
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
+## To-do:
+# Allow players to choose their color
+# --Offer color selection somehow
+# --Render in the "waiting for players" screens with inline HTML formatting
+# --so the names are the actual colors the players are choosing
+# --Store in final_player_table (aka init_player_list()())
+# Add robber action as a little UFO over the hex
+# --Should disable the hex from producing resources
+# --Will need to be constructed from polygons (all 7-sided!)
+
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
+
 ui <- fillPage(
   uiOutput("visible_screen"),
   includeCSS("styles.css")
