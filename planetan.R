@@ -141,6 +141,21 @@ server <- function(input, output, session){
       )
       return(join_game_failed_div)
     }
+    if(login_status()=="uname_already_taken"){
+      # Can use input$game_id here
+      print("Returning uname_already_taken_div")
+      uname_already_taken_div <- div(
+        class = "center-both",
+        wellPanel(
+          h3("Provide a username and password"),
+          textInput("uname", label = "Username:", value = "admin"), #change back to newplayer eventually
+          p("That username is already taken! Choose a different one.", style="color:red;"),
+          textInput("pwd", label = "Password:", value = "password"), #change back to alsopassword eventually
+          actionButton("provide_login_info", "Join game")
+        )
+      )
+      return(uname_already_taken_div)
+    }
     
     # If we make it this far then game_id is definitely available as input$game_id
     # and therefore we can read from the game files
@@ -278,25 +293,29 @@ server <- function(input, output, session){
     # player_table and compare password
     if(getGameData("game_status")=="players_joining"){
       player_table_static <- getGameData("init_player_list")
-      new_player_table_static <- rbind(player_table_static, c("uname"=input$uname, "pwd"=input$pwd))
-      setGameData("init_player_list", new_player_table_static)
-      login_status("join_waiting")
-      
-      # Initialize observer so that we can see updates to the player list while waiting
-      init_player_list(reactiveFileReader(
-        intervalMillis = 100, 
-        session = session, 
-        filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
-        readFunc = readRDS
-      ))
-      # Initialize observer so that we can see when game_status.rds changes to "setup"
-      # This observation doesn't happen here but instead above in input$game_start section
-      game_status(reactiveFileReader(
-        intervalMillis = 100, 
-        session = session, 
-        filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
-        readFunc = readRDS
-      ))
+      if(input$uname%in%player_table_static$uname){
+        login_status("uname_already_taken")
+      } else {
+        new_player_table_static <- rbind(player_table_static, c("uname"=input$uname, "pwd"=input$pwd))
+        setGameData("init_player_list", new_player_table_static)
+        login_status("join_waiting")
+        
+        # Initialize observer so that we can see updates to the player list while waiting
+        init_player_list(reactiveFileReader(
+          intervalMillis = 100, 
+          session = session, 
+          filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
+          readFunc = readRDS
+        ))
+        # Initialize observer so that we can see when game_status.rds changes to "setup"
+        # This observation doesn't happen here but instead above in input$game_start section
+        game_status(reactiveFileReader(
+          intervalMillis = 100, 
+          session = session, 
+          filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
+          readFunc = readRDS
+        ))
+      }
     } else {
       # Single static read of final_player_table here is ok because we're being 
       # triggered by button click not by any action from other clients
