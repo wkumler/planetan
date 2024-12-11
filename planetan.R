@@ -126,6 +126,20 @@ server <- function(input, output, session){
       )
       return(found_game_id_div)
     }
+    if(login_status()=="uname_already_taken"){
+      print("Returning uname_already_taken_div")
+      uname_already_taken_div <- div(
+        class = "center-both",
+        wellPanel(
+          h3("Provide a username and password"),
+          textInput("uname", label = "Username:", value = "admin"), #remove value eventually
+          p("That username is already taken! Choose a different one.", style="color:red;"),
+          textInput("pwd", label = "Password:", value = "password"), #remove value eventually
+          actionButton("provide_login_info", "Join game")
+        )
+      )
+      return(uname_already_taken_div)
+    }
     if(login_status()=="join_game_failed"){
       print("Returning join_game_failed_div")
       join_game_failed_div <- div(
@@ -140,21 +154,6 @@ server <- function(input, output, session){
         )
       )
       return(join_game_failed_div)
-    }
-    if(login_status()=="uname_already_taken"){
-      # Can use input$game_id here
-      print("Returning uname_already_taken_div")
-      uname_already_taken_div <- div(
-        class = "center-both",
-        wellPanel(
-          h3("Provide a username and password"),
-          textInput("uname", label = "Username:", value = "admin"), #change back to newplayer eventually
-          p("That username is already taken! Choose a different one.", style="color:red;"),
-          textInput("pwd", label = "Password:", value = "password"), #change back to alsopassword eventually
-          actionButton("provide_login_info", "Join game")
-        )
-      )
-      return(uname_already_taken_div)
     }
     
     # If we make it this far then game_id is definitely available as input$game_id
