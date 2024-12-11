@@ -46,7 +46,7 @@ server <- function(input, output, session){
   init_player_list <- reactiveVal(function(){})
   game_status <- reactiveVal(function(){})
   current_player <- reactiveVal(function(){})
-  
+
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
     if(login_status()=="startup"){
@@ -107,7 +107,7 @@ server <- function(input, output, session){
         class = "center-both",
         wellPanel(
           h3("Join an existing game"),
-          textInput("game_id", label = "Choose a game ID:", value = "SICKMF"), # Remove value after debugging
+          textInput("game_id", label = "Choose a game ID:", value = "QUNWYD"), # Remove value after debugging
           actionButton("attempt_join_button", paste("Find game"))
         )
       )
@@ -134,7 +134,7 @@ server <- function(input, output, session){
         class = "center-both",
         wellPanel(
           h3("Provide a username and password"),
-          textInput("uname", label = "Username:", value = "admin"), #change back to newplayer eventually
+          textInput("uname", label = "Username:", value = "newplayer"), #change back to newplayer eventually
           textInput("pwd", label = "Password:", value = "password"), #change back to alsopassword eventually
           actionButton("provide_login_info", "Join game")
         )
@@ -394,7 +394,46 @@ server <- function(input, output, session){
   })
   observeEvent(input$build_here, {
     print("input$build_here clicked")
+    marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
+    print(ed())
+    build_spot <- marker_data_unmoved[ed()$key,]
+    print(build_spot)
+
+    piece_data <- piece_maker("settlement", build_spot, color = "red")
+    # Piece_data returns columns for
+    # vertices = x, y, z
+    # faces = i, j, k, color
+    # Added trace has to match the initial one EXACTLY
+    # x=~vertices$x, y=~vertices$y, z=~vertices$z,
+    # i=~faces$i, j=~faces$j, k=~faces$k,
+    # facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+    #               maxColorValue = 255),
+    # lighting=list(diffuse=1),
+    # hoverinfo="none"
+    # Also need to know the number of rows in the world geom to get the index offset?
+    static_globe_plates <- getGameData("globe_plates", print_value = FALSE)
+    print(nrow(static_globe_plates$vertices)) # 13477
     
+    newtrace <- list(
+      x=list(as.list(piece_data$vertices$x)), 
+      y=list(as.list(piece_data$vertices$y)), 
+      z=list(as.list(piece_data$vertices$z)),
+      i=list(as.list(piece_data$faces$i+nrow(static_globe_plates$vertices))), 
+      j=list(as.list(piece_data$faces$j+nrow(static_globe_plates$vertices))), 
+      k=list(as.list(piece_data$faces$k+nrow(static_globe_plates$vertices))),
+      facecolor=list(list("red")) # might also be facecolor?
+    )
+    # newtrace <- list(
+    #   x=list(list(0)), # This becomes point "number" 13477 because points 0:13476 exist (nrow=13477)
+    #   y=list(list(0)),
+    #   z=list(list(0)),
+    #   i=list(list(0, 0)),
+    #   j=list(list(1000, 2000)),
+    #   k=list(list(13477, 13477)), # 13477 does work, 13478 doesn't
+    #   facecolor=list(list("red"))
+    # )
+    plotlyProxy("game_world") %>%
+      plotlyProxyInvoke("extendTraces", newtrace, list(0))
   })
   
   output$game_world <- renderPlotly({
@@ -433,14 +472,22 @@ server <- function(input, output, session){
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
   observeEvent(ed(), {
-    req(ed()$key) # Prevent clicks on the GLOBE from registering
+    req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("game_world clicked!")
     print(ed())
     # Safe to delete trace 1 if it doesn't exist
+    # I need some way of managing what traces have been added and in what order
+    # Trace stack will consist of intermixed markers and meshes
+    # Meshes will accumulate over time (or max out at two of them?) but not be removed
+    # Markers will get added and removed
+    # trace_stack <- data.frame(name=c("globe"), trace_id=0)
+    
+    # Initially, trace 0 is the globe and trace 1 is the markers added afterward
+    
     plotlyProxy("game_world") %>%
-      plotlyProxyInvoke("deleteTraces", 1)
+      plotlyProxyInvoke("deleteTraces", 2)
     newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
-                     mode = "markers", marker=list(color="red"))
+                     mode = "markers", marker=list(color="red", opacity=0.2, size=50))
     plotlyProxy("game_world") %>%
       plotlyProxyInvoke("addTraces", newtrace)
     
