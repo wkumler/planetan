@@ -41,6 +41,7 @@ server <- function(input, output, session){
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
   point_selected <- reactiveVal(FALSE)
+  nvert_globe_plates <- reactiveVal(0)
   # These vars are fancy reactives because they're shared across sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
@@ -255,7 +256,7 @@ server <- function(input, output, session){
       )
     )
   })
-
+  
   observeEvent(input$new_game_button, {
     print("input$new_game_button clicked")
     login_status("make_new_game")
@@ -395,9 +396,7 @@ server <- function(input, output, session){
   observeEvent(input$build_here, {
     print("input$build_here clicked")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
-    print(ed())
     build_spot <- marker_data_unmoved[ed()$key,]
-    print(build_spot)
 
     piece_data <- piece_maker("settlement", build_spot, color = "red")
     # Piece_data returns columns for
@@ -410,18 +409,15 @@ server <- function(input, output, session){
     #               maxColorValue = 255),
     # lighting=list(diffuse=1),
     # hoverinfo="none"
-    # Also need to know the number of rows in the world geom to get the index offset?
-    static_globe_plates <- getGameData("globe_plates", print_value = FALSE)
-    print(nrow(static_globe_plates$vertices)) # 13477
-    
+    print(nvert_globe_plates())
     newtrace <- list(
       x=list(as.list(piece_data$vertices$x)), 
       y=list(as.list(piece_data$vertices$y)), 
       z=list(as.list(piece_data$vertices$z)),
-      i=list(as.list(piece_data$faces$i+nrow(static_globe_plates$vertices))), 
-      j=list(as.list(piece_data$faces$j+nrow(static_globe_plates$vertices))), 
-      k=list(as.list(piece_data$faces$k+nrow(static_globe_plates$vertices))),
-      facecolor=list(list("red")) # might also be facecolor?
+      i=list(as.list(piece_data$faces$i+nvert_globe_plates())), 
+      j=list(as.list(piece_data$faces$j+nvert_globe_plates())), 
+      k=list(as.list(piece_data$faces$k+nvert_globe_plates())),
+      facecolor=list(as.list("red")) # not currently working
     )
     # newtrace <- list(
     #   x=list(list(0)), # This becomes point "number" 13477 because points 0:13476 exist (nrow=13477)
@@ -439,6 +435,7 @@ server <- function(input, output, session){
   output$game_world <- renderPlotly({
     print("Re-rendering game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
+    nvert_globe_plates(nrow(globe_plates$vertices))
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
