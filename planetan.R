@@ -192,6 +192,8 @@ server <- function(input, output, session){
         return(join_waiting_div)
       }
     }
+    
+    # Load current_player()() here to avoid loading it separately for host and join
     current_player(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
@@ -219,7 +221,16 @@ server <- function(input, output, session){
         return(world_div_clickable)
       } else {
         print("Returning world div with no clickable points")
-        return(world_div_nopoints)
+        world_div_unclickable <- tagList(
+          sidebarPanel(
+            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
+            h3(paste("Waiting on", current_player()(), "to choose starting location"))
+          ),
+          mainPanel(
+            plotlyOutput("game_world_static", height = "100vh")
+          )
+        )
+        return(world_div_unclickable)
       }
     }
     div(
@@ -374,7 +385,7 @@ server <- function(input, output, session){
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-    ply <- plot_ly(source = "setup") %>%
+    ply <- plot_ly(source = "game_world") %>%
       add_trace(type="mesh3d", data = globe_plates,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
@@ -385,15 +396,17 @@ server <- function(input, output, session){
       layout(scene=list(
         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
         aspectmode='cube',
-        camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+        camera=list(eye=list(x=0.8, y=0.8, z=0.8)),
         bgcolor="black"
       ),
       margin=list(l=0, r=0, b=0, t=0, pad=0),
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
+    return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
   observeEvent(ed(), {
+    req(ed()$key) # Prevent clicks on the GLOBE from registering
     print("game_world clicked!")
     print(ed())
     # Safe to delete trace 1 if it doesn't exist
@@ -405,6 +418,30 @@ server <- function(input, output, session){
       plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here", label = "Build here?", disabled = FALSE)
+  })
+  output$game_world_static <- renderPlotly({
+    print("Re-rendering static game_world")
+    globe_plates <- getGameData("globe_plates")
+    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+                     autorange=FALSE, showspikes=FALSE,
+                     showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+    plot_ly(source="static_globe") %>% # Source shouldn't be used
+      add_trace(type="mesh3d", data = globe_plates,
+                x=~vertices$x, y=~vertices$y, z=~vertices$z,
+                i=~faces$i, j=~faces$j, k=~faces$k,
+                facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                              maxColorValue = 255),
+                lighting=list(diffuse=1),
+                hoverinfo="none") %>%
+      layout(scene=list(
+        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+        aspectmode='cube',
+        camera=list(eye=list(x=0.8, y=0.8, z=0.8)),
+        bgcolor="black"
+      ),
+      margin=list(l=0, r=0, b=0, t=0, pad=0),
+      showlegend=FALSE) %>%
+      config(displayModeBar = FALSE)
   })
 }
 
