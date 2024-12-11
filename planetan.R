@@ -439,6 +439,8 @@ server <- function(input, output, session){
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+    # Maybe build ply() as a reactive object (static object?)
+    # at the same time that the world itself is built?
     ply <- plot_ly(source = "game_world") %>%
       add_trace(type="mesh3d", data = globe_plates,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
@@ -457,13 +459,19 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
+    # This feels like it should be added with an updatePlotlyProxy, not here...
+    # I like the elegance of game_world only really being the globe itself
+    # and then the traces are added/removed later
+    # Feeling pretty good about visuals/meshes being added via updatePlotly
+    # all into trace 0 because those shouldn't need to be removed later
+    # and that makes keeping track of the trace numbers a lot easier.
     marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
     settlement_spots <- marker_data_all[marker_data_all$lab=="settlement",]
     
     ply <- ply %>%
       add_trace(type="scatter3d", mode="markers", data = settlement_spots,
                 x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
-                marker=list(color="white", opacity=0.1, size=50),
+                marker=list(color="white", opacity=0.001, size=50), # apparently opacity=0 doesn't work
                 hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     return(ply)
   })
@@ -482,7 +490,7 @@ server <- function(input, output, session){
     # Initially, trace 0 is the globe and trace 1 is the markers added afterward
     
     plotlyProxy("game_world") %>%
-      plotlyProxyInvoke("deleteTraces", 2)
+      plotlyProxyInvoke("deleteTraces", 2) # Remove colored trace if it exists
     newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
                      mode = "markers", marker=list(color="red", opacity=0.2, size=50))
     plotlyProxy("game_world") %>%
