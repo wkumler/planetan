@@ -41,7 +41,6 @@ server <- function(input, output, session){
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
   point_selected <- reactiveVal(FALSE)
-  nvert_globe_plates <- reactiveVal(0)
   # These vars are fancy reactives because they're shared across sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
@@ -409,14 +408,14 @@ server <- function(input, output, session){
     #               maxColorValue = 255),
     # lighting=list(diffuse=1),
     # hoverinfo="none"
-    print(nvert_globe_plates())
+    print(nvert_globe_plates)
     newtrace <- list(
       x=list(as.list(piece_data$vertices$x)), 
       y=list(as.list(piece_data$vertices$y)), 
       z=list(as.list(piece_data$vertices$z)),
-      i=list(as.list(piece_data$faces$i+nvert_globe_plates())), 
-      j=list(as.list(piece_data$faces$j+nvert_globe_plates())), 
-      k=list(as.list(piece_data$faces$k+nvert_globe_plates())),
+      i=list(as.list(piece_data$faces$i+nvert_globe_plates)),
+      j=list(as.list(piece_data$faces$j+nvert_globe_plates)), 
+      k=list(as.list(piece_data$faces$k+nvert_globe_plates)),
       facecolor=list(as.list("red")) # not currently working
     )
     # newtrace <- list(
@@ -435,7 +434,9 @@ server <- function(input, output, session){
   output$game_world <- renderPlotly({
     print("Re-rendering game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
-    nvert_globe_plates(nrow(globe_plates$vertices))
+    # Non-local works great, at least for simple variables like this.
+    nvert_globe_plates <<- nrow(globe_plates$vertices)
+    
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
