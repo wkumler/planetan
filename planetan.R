@@ -191,50 +191,23 @@ server <- function(input, output, session){
     print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
       if(current_player()()==input$uname){
-        if(!point_selected()){
-          print("Returning world div preceding click")
-          world_div_unclicked <- tagList(
-            sidebarPanel(
-              h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-              h3("Choose a starting location by clicking on the globe.")
-              # h3("Current resources:"),
-              # renderTable(player_resources()),
-              # uiOutput("rolldicebutton"),
-              # uiOutput("endturnbutton"),
-              # uiOutput("offertradebutton"),
-              # uiOutput("tradeoffered")
-            ),
-            mainPanel(
-              plotlyOutput("game_world", height = "100vh")
-            )
+        print("Returning world div with clickables")
+        world_div_clickable <- tagList(
+          sidebarPanel(
+            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
+            h3("Choose a starting location by clicking on the globe."),
+            actionButton("build_here", label = "Build here?", disabled = TRUE)
+          ),
+          mainPanel(
+            plotlyOutput("game_world", height = "100vh")
           )
-          return(world_div_unclicked)
-        } else {
-          print("Returning world div WITH build_here in sidebar")
-          world_div_buildhere_button <- tagList(
-            sidebarPanel(
-              h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-              h3("Choose a starting location by clicking on the globe."),
-              actionButton("build_here", label = "Build here?")
-              # h3("Current resources:"),
-              # renderTable(player_resources()),
-              # uiOutput("rolldicebutton"),
-              # uiOutput("endturnbutton"),
-              # uiOutput("offertradebutton"),
-              # uiOutput("tradeoffered")
-            ),
-            mainPanel(
-              plotlyOutput("game_world", height = "100vh")
-            )
-          )
-          return(world_div_buildhere_button)
-        }
+        )
+        return(world_div_clickable)
       } else {
         print("Returning world div with no clickable points")
         return(world_div_nopoints)
       }
     }
-    
     div(
       class = "center-both",
       wellPanel(
@@ -369,13 +342,14 @@ server <- function(input, output, session){
   })
   
   output$game_world <- renderPlotly({
-    plot_ly(x=1:1e5, y=runif(1e5), mode="markers", type="scatter", source = "game_world")
+    print("Re-rendering game_world :(")
+    plot_ly(x=1:1e4, y=runif(1e4), mode="markers", type="scatter", source = "game_world")
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
   observeEvent(ed(), {
     print("game_world clicked!")
     print(ed())
-    point_selected(TRUE)
+    updateActionButton(session, "build_here", label = "Build here?", disabled = FALSE)
   })
 }
 
