@@ -13,7 +13,7 @@ server <- function(input, output, session){
   getGameData <- function(rds_obj_name){
     print(paste("Reading", rds_obj_name, "in from file"))
     value <- readRDS(paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
-    print(paste("Value:", value))
+    # print(paste("Value:", value))
     return(value)
   }
   setGameData <- function(rds_obj_name, value){
@@ -92,7 +92,7 @@ server <- function(input, output, session){
         class = "center-both",
         wellPanel(
           h3("Join an existing game"),
-          textInput("game_id", label = "Choose a game ID:"),
+          textInput("game_id", label = "Choose a game ID:", value = "SICKMF"), # Remove value after debugging
           actionButton("attempt_join_button", paste("Find game"))
         )
       )
@@ -119,8 +119,8 @@ server <- function(input, output, session){
         class = "center-both",
         wellPanel(
           h3("Provide a username and password"),
-          textInput("uname", label = "Username:", value = "newplayer"),
-          textInput("pwd", label = "Password:", value = "alsopassword"),
+          textInput("uname", label = "Username:", value = "admin"), #change back to newplayer eventually
+          textInput("pwd", label = "Password:", value = "password"), #change back to alsopassword eventually
           actionButton("provide_login_info", "Join game")
         )
       )
@@ -229,10 +229,9 @@ server <- function(input, output, session){
     
     if(input$game_id%in%readRDS("game_files/existing_game_ids.rds")){
       login_status("game_id_taken")
-    } else {
-      login_status("host_waiting")
+      return(NULL)
     }
-    
+
     # Ensure new game IDs are saved AFTER checking whether ID is taken :p
     existing_game_ids <- readRDS("game_files/existing_game_ids.rds")
     saveRDS(c(existing_game_ids, input$game_id), "game_files/existing_game_ids.rds")
@@ -240,12 +239,18 @@ server <- function(input, output, session){
     setGameData("game_status", "players_joining")
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     
+    globe_layout <- getRandomGlobeLayout()
+    built_world <- worldbuilder(globe_layout)
+    setGameData("globe_layout", globe_layout)
+    setGameData("globe_plates", built_world)
+    
     init_player_list(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
       readFunc = readRDS
     ))
+    login_status("host_waiting")
   })
   observeEvent(input$join_game_button, {
     print("input$join_game_button clicked")
@@ -340,15 +345,47 @@ server <- function(input, output, session){
     ))
     setGameData("current_player", sample(init_player_list()()$uname, 1))
   })
+  observeEvent(input$build_here, {
+    print("input$build_here clicked")
+    
+  })
   
   output$game_world <- renderPlotly({
-    print("Re-rendering game_world :(")
-    plot_ly(x=1:1e4, y=runif(1e4), mode="markers", type="scatter", source = "game_world")
+    print("Re-rendering game_world")
+    globe_plates <- getGameData("globe_plates")
+    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+                     autorange=FALSE, showspikes=FALSE,
+                     showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+    ply <- plot_ly(source = "setup") %>%
+      add_trace(type="mesh3d", data = globe_plates,
+                x=~vertices$x, y=~vertices$y, z=~vertices$z,
+                i=~faces$i, j=~faces$j, k=~faces$k,
+                facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                              maxColorValue = 255),
+                lighting=list(diffuse=1),
+                hoverinfo="none") %>%
+      layout(scene=list(
+        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+        aspectmode='cube',
+        camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+        bgcolor="black"
+      ),
+      margin=list(l=0, r=0, b=0, t=0, pad=0),
+      showlegend=FALSE) %>%
+      config(displayModeBar = FALSE)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
   observeEvent(ed(), {
     print("game_world clicked!")
     print(ed())
+    # Safe to delete trace 1 if it doesn't exist
+    plotlyProxy("game_world") %>%
+      plotlyProxyInvoke("deleteTraces", 1)
+    newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
+                     mode = "markers", marker=list(color="red"))
+    plotlyProxy("game_world") %>%
+      plotlyProxyInvoke("addTraces", newtrace)
+    
     updateActionButton(session, "build_here", label = "Build here?", disabled = FALSE)
   })
 }
