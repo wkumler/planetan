@@ -707,7 +707,7 @@ settlement_piece <- function(center_x, center_y, size=side_length/4, color="grey
 #     rotate_geom(y_deg = elevation_angle, manual_center = center_vec) %>%
 #     rotate_geom(z_deg = -compass_angle, manual_center = center_vec)
 # }
-piece_maker <- function(piece_type, data_df_row, color='grey50', data_df_row2=NULL){
+piece_maker <- function(piece_type, data_df_row, color='grey50'){
   center_vec <- unlist(data_df_row[,c("x", "y", "z")])
   if(piece_type=="city"){
     game_piece <- city_piece(center_x = data_df_row$x, 
