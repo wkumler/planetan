@@ -170,9 +170,9 @@ sphere2cart <- function(sphere_vec){
 }
 # Create initial data for interactable markers
 marker_data_unmoved  <- rbind(
-  cbind(TI_structure$vertices, lab="settlement"),
-  cbind(TI_structure$edges, lab="road"),
-  cbind(TI_structure$faces, lab="faces")
+  cbind(TI_structure$vertices, lab="vertex"),
+  cbind(TI_structure$edges, lab="edge"),
+  cbind(TI_structure$faces, lab="face")
 )
 # Move them slightly outside the globe to improve interactivity
 marker_data_all <- marker_data_unmoved

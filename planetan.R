@@ -2,7 +2,7 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
-set.seed(123)
+set.seed(124)
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ## To-do:
@@ -15,6 +15,7 @@ set.seed(123)
 # --Should disable the hex from producing resources
 # --Will need to be constructed from polygons (all 7-sided!)
 
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
 if(!dir.exists("game_files"))dir.create("game_files")
 if(!file.exists("game_files/existing_game_ids.rds")){
   saveRDS("ABC", "game_files/existing_game_ids.rds")
@@ -250,7 +251,8 @@ server <- function(input, output, session){
         world_div_unclickable <- tagList(
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-            h3(paste("Waiting on", current_player()(), "to choose starting location"))
+            h3(paste("Waiting on", current_player()(), "to choose starting location")),
+            tableOutput("build_info")
           ),
           mainPanel(
             plotlyOutput("game_world_static", height = "100vh")
@@ -296,8 +298,10 @@ server <- function(input, output, session){
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     setGameData("build_list", data.frame(id=numeric(), owner=character(), build=character()))
     
-    resource_layout <- getRandomGlobeLayout()
-    built_world <- worldbuilder(resource_layout)
+    # resource_layout <- getRandomGlobeLayout()
+    # built_world <- worldbuilder(resource_layout)
+    resource_layout <- readRDS("debug_resource_layout.rds")
+    built_world <- readRDS("debug_built_world.rds")
     setGameData("resource_layout", resource_layout, print_value = FALSE)
     setGameData("globe_plates", built_world, print_value = FALSE)
     
@@ -416,34 +420,38 @@ server <- function(input, output, session){
     build_spot <- marker_data_unmoved[ed()$key,]
     print(build_spot)
     
-    new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_spot$lab)
+    if(build_spot$lab=="edge"){
+      build_type <- "road"
+    } else { #if(build_spot$lab=="vertex")
+      if(build_spot$id%in%build_list()()$id){ # if it's been built before
+        build_type <- "city"
+      } else {
+        build_type <- "settlement"
+      }
+    }
+    new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
   })
   observeEvent(build_list()(), {
     print("build_list()() triggered")
-    if(nrow(build_list()())==0){
-      print("Nothing in build list?? So how was it triggered?")
+    anti_merge <- function(x, y, by) {
+      x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
+    }
+    new_build_data <- anti_merge(build_list()(), my_build_list, by=c("id", "build"))
+    if(nrow(new_build_data)==0){
+      print("No data to merge! Returning NULL")
       return(NULL)
     }
-    
-    new_builds <- build_list()()
-    new_builds$status <- "new"
-    new_builds <<- new_builds
-    build_merge <- merge(new_builds, my_build_list, all.x = TRUE)
-    print(build_merge)
-    build_merge <<- build_merge
-    new_build_data <- build_merge[build_merge$status=="new",]
-    new_build_row_data <- merge(new_build_data[,"id",drop=FALSE], marker_data_unmoved)
+    new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
     new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
-    new_geoms <- mapply(piece_maker, new_builds$build, new_build_row_list, SIMPLIFY = FALSE)
+    new_geoms <- mapply(piece_maker, new_build_data$build, new_build_row_list, SIMPLIFY = FALSE)
     new_geoms <<- new_geoms
-    print(new_geoms)
     new_geom_combined <- combine_geoms(new_geoms)
     print("Successfully combined geoms")
-    new_geom_combined <<- new_geom_combined
     
     nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
-    mesh_offset <- sum(merge(new_build_row_data, nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
+    print(sum(merge(my_build_list, nvert_piece_vals, all.y = FALSE)$nvert))
+    mesh_offset <- sum(merge(my_build_list, nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
     print(mesh_offset)
 
     newtrace <- list(
@@ -453,10 +461,14 @@ server <- function(input, output, session){
       i=list(as.list(new_geom_combined$faces$i+mesh_offset)),
       j=list(as.list(new_geom_combined$faces$j+mesh_offset)),
       k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
-      facecolor=list(as.list("red")) # not currently working
+      facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
     )
     plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    plotlyProxy("game_world_static") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     
+    print(input$uname)
+    print(my_build_list)
+    print(build_list()())
     my_build_list <<- build_list()()
   })
   
@@ -496,14 +508,14 @@ server <- function(input, output, session){
     # all into trace 0 because those shouldn't need to be removed later
     # and that makes keeping track of the trace numbers a lot easier.
     marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
-    settlement_spots <- marker_data_all[marker_data_all$lab=="settlement",]
+    ### THIS NEEDS TO BE FIXED LATER
+    settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
     
     ply <- ply %>%
       add_trace(type="scatter3d", mode="markers", data = settlement_spots,
-                x=~x, y=~y, z=~z, key=~id, text=~lab, hoverinfo="text",
-                marker=list(color="white", opacity=0.001, size=50), 
+                x=~x, y=~y, z=~z, key=~id,
+                marker=list(color="white", opacity=0.001, size=50))
                 # apparently opacity=0 doesn't work lmao and returns 1
-                hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
@@ -554,5 +566,5 @@ server <- function(input, output, session){
 }
 
 
-# browseURL("http://127.0.0.1:5013/")
+browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
