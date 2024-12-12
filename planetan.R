@@ -2,6 +2,7 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
+set.seed(123)
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ## To-do:
@@ -75,7 +76,8 @@ server <- function(input, output, session){
           h3("Start a new game"),
           textInput("uname", label = "Pick a username:", value = "admin"),
           textInput("pwd", label = "Pick your password:", value = "password"),
-          textInput("game_id", label = "Choose a game ID:", value = suggested_game_id),
+          textInput("game_id", label = "Choose a game ID:", value = "QUNWYD"),
+          # textInput("game_id", label = "Choose a game ID:", value = suggested_game_id),
           actionButton("host_ready_button", "Start hosting")
         )
       )
@@ -216,6 +218,7 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
       readFunc = readRDS
     ))
+    my_build_list <<- data.frame(id=numeric(), owner=character(), build=character())
     build_list(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
@@ -264,6 +267,7 @@ server <- function(input, output, session){
     )
   })
   output$build_info <- renderTable({
+    print("Rendering build_info as a table!")
     build_list()()
   })
   
@@ -406,52 +410,54 @@ server <- function(input, output, session){
   })
   observeEvent(input$build_here, {
     print("input$build_here clicked")
+    print("Value of ed():")
+    print(ed())
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
     print(build_spot)
     
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_spot$lab)
     setGameData("build_list", rbind(build_list()(), new_build))
+  })
+  observeEvent(build_list()(), {
+    print("build_list()() triggered")
+    if(nrow(build_list()())==0){
+      print("Nothing in build list?? So how was it triggered?")
+      return(NULL)
+    }
+    
+    new_builds <- build_list()()
+    new_builds$status <- "new"
+    new_builds <<- new_builds
+    build_merge <- merge(new_builds, my_build_list, all.x = TRUE)
+    print(build_merge)
+    build_merge <<- build_merge
+    new_build_data <- build_merge[build_merge$status=="new",]
+    new_build_row_data <- merge(new_build_data[,"id",drop=FALSE], marker_data_unmoved)
+    new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
+    new_geoms <- mapply(piece_maker, new_builds$build, new_build_row_list, SIMPLIFY = FALSE)
+    new_geoms <<- new_geoms
+    print(new_geoms)
+    new_geom_combined <- combine_geoms(new_geoms)
+    print("Successfully combined geoms")
+    new_geom_combined <<- new_geom_combined
+    
+    nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
+    mesh_offset <- sum(merge(new_build_row_data, nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
+    print(mesh_offset)
 
-    piece_data <- piece_maker("settlement", build_spot, color = "red")
-    # Piece_data returns columns for
-    # vertices = x, y, z
-    # faces = i, j, k, color
-    # Added trace has to match the initial one EXACTLY
-    # x=~vertices$x, y=~vertices$y, z=~vertices$z,
-    # i=~faces$i, j=~faces$j, k=~faces$k,
-    # facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
-    #               maxColorValue = 255),
-    # lighting=list(diffuse=1),
-    # hoverinfo="none"
-    table_of_builds <- table(build_list()()$build)
-    n_build_offset <- sum(
-      table_of_builds["city"]*80, 
-      table_of_builds["settlement"]*20, 
-      table_of_builds["road"]*10, # CHANGE THIS IF ROADS ARE REFINED
-      na.rm = TRUE
-    )
-    print(n_build_offset)
     newtrace <- list(
-      x=list(as.list(piece_data$vertices$x)), 
-      y=list(as.list(piece_data$vertices$y)), 
-      z=list(as.list(piece_data$vertices$z)),
-      i=list(as.list(piece_data$faces$i+nvert_globe_plates+n_build_offset)),
-      j=list(as.list(piece_data$faces$j+nvert_globe_plates+n_build_offset)), 
-      k=list(as.list(piece_data$faces$k+nvert_globe_plates+n_build_offset)),
+      x=list(as.list(new_geom_combined$vertices$x)),
+      y=list(as.list(new_geom_combined$vertices$y)),
+      z=list(as.list(new_geom_combined$vertices$z)),
+      i=list(as.list(new_geom_combined$faces$i+mesh_offset)),
+      j=list(as.list(new_geom_combined$faces$j+mesh_offset)),
+      k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
       facecolor=list(as.list("red")) # not currently working
     )
-    # newtrace <- list(
-    #   x=list(list(0)), # This becomes point "number" 13477 because points 0:13476 exist (nrow=13477)
-    #   y=list(list(0)),
-    #   z=list(list(0)),
-    #   i=list(list(0, 0)),
-    #   j=list(list(1000, 2000)),
-    #   k=list(list(13477, 13477)), # 13477 does work, 13478 doesn't
-    #   facecolor=list(list("red"))
-    # )
-    plotlyProxy("game_world") %>%
-      plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    
+    my_build_list <<- build_list()()
   })
   
   output$game_world <- renderPlotly({
@@ -498,29 +504,6 @@ server <- function(input, output, session){
                 marker=list(color="white", opacity=0.001, size=50), 
                 # apparently opacity=0 doesn't work lmao and returns 1
                 hovertemplate=paste0("Build a %{text}?<extra></extra>"))
-    
-    if(nrow(build_list()())>0){
-      cumulative_offset <- 0
-      for(i in seq_len(nrow(build_list()()))){
-        row_i <- build_list()()[i,]
-        new_row <- marker_data_all[marker_data_all$id==row_i$id,]
-        piece_data <- piece_maker(row_i$build, new_row)
-        newtrace <- list(
-          x=list(as.list(piece_data$vertices$x)), 
-          y=list(as.list(piece_data$vertices$y)), 
-          z=list(as.list(piece_data$vertices$z)),
-          i=list(as.list(piece_data$faces$i+nvert_globe_plates+cumulative_offset)),
-          j=list(as.list(piece_data$faces$j+nvert_globe_plates+cumulative_offset)), 
-          k=list(as.list(piece_data$faces$k+nvert_globe_plates+cumulative_offset)),
-          facecolor=list(as.list("red")) # not currently working
-        )
-        
-        plotlyProxy("game_world") %>%
-          plotlyProxyInvoke("extendTraces", newtrace, list(0))
-        cumulative_offset <- cumulative_offset + switch(row_i$build, city=80, settlement=20, road=10)
-      }
-    }
-    
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
