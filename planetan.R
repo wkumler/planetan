@@ -2,7 +2,6 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
-set.seed(124)
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ## To-do:
@@ -15,12 +14,6 @@ set.seed(124)
 # --Should disable the hex from producing resources
 # --Will need to be constructed from polygons (all 7-sided!)
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
-
 ui <- fillPage(
   uiOutput("visible_screen"),
   includeCSS("styles.css")
@@ -28,21 +21,22 @@ ui <- fillPage(
 
 server <- function(input, output, session){
   getGameData <- function(rds_obj_name, print_value=TRUE){
-    print(paste("Reading", rds_obj_name, "in from file"))
+    # print(paste("Reading", rds_obj_name, "in from file"))
     value <- readRDS(paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
-    if(print_value)print(paste("Value:", value))
+    # if(print_value)print(paste("Value:", value))
     return(value)
   }
   setGameData <- function(rds_obj_name, value, print_value=TRUE){
-    print(paste("Saving", rds_obj_name, "into file"))
+    # print(paste("Saving", rds_obj_name, "into file"))
     saveRDS(value, paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
-    if(print_value)print(paste("Value:", value))
+    # if(print_value)print(paste("Value:", value))
     return(NULL)
   }
   
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
   point_selected <- reactiveVal(FALSE)
+  my_build_list <- reactiveVal(data.frame(id=numeric(), owner=character(), build=character()))
   # These vars are fancy reactives because they're shared across sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
@@ -219,7 +213,6 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
       readFunc = readRDS
     ))
-    my_build_list <<- data.frame(id=numeric(), owner=character(), build=character())
     build_list(reactiveFileReader(
       intervalMillis = 100, 
       session = session, 
@@ -433,26 +426,21 @@ server <- function(input, output, session){
     setGameData("build_list", rbind(build_list()(), new_build))
   })
   observeEvent(build_list()(), {
-    print("build_list()() triggered")
+    print(paste("build_list()() triggered for", input$uname))
     anti_merge <- function(x, y, by) {
       x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
     }
-    new_build_data <- anti_merge(build_list()(), my_build_list, by=c("id", "build"))
+    new_build_data <- anti_merge(build_list()(), my_build_list(), by=c("id", "build"))
     if(nrow(new_build_data)==0){
-      print("No data to merge! Returning NULL")
       return(NULL)
     }
     new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
     new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
     new_geoms <- mapply(piece_maker, new_build_data$build, new_build_row_list, SIMPLIFY = FALSE)
-    new_geoms <<- new_geoms
     new_geom_combined <- combine_geoms(new_geoms)
-    print("Successfully combined geoms")
     
     nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
-    print(sum(merge(my_build_list, nvert_piece_vals, all.y = FALSE)$nvert))
-    mesh_offset <- sum(merge(my_build_list, nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
-    print(mesh_offset)
+    mesh_offset <- sum(merge(my_build_list(), nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
 
     newtrace <- list(
       x=list(as.list(new_geom_combined$vertices$x)),
@@ -466,10 +454,9 @@ server <- function(input, output, session){
     plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     plotlyProxy("game_world_static") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     
-    print(input$uname)
-    print(my_build_list)
-    print(build_list()())
-    my_build_list <<- build_list()()
+    # print(my_build_list())
+    # print(build_list()())
+    my_build_list(build_list()())
   })
   
   output$game_world <- renderPlotly({
@@ -566,5 +553,10 @@ server <- function(input, output, session){
 }
 
 
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
