@@ -693,6 +693,22 @@ settlement_piece <- function(center_x, center_y, size=side_length/4, color="grey
   # settlement$vertices[11:20,] <- settlement$vertices[11:20,]*0.999
 }
 
+robber_piece <- function(center_x, center_y, size=side_length/2){
+  tractor_gon <- render_gon(7, center_x, center_y, size/2, color="black")
+  tractor_geom <- gon_2_point(tractor_gon, elevation = -2, height = size*1.5, color = "#32CD3255")
+  
+  glass_gon <- render_gon(7, center_x, center_y, size*0.8, color="#D1E5F4")
+  glass_geom <- gon_2_point(glass_gon, elevation = size/3*2.1, height = size/3, color = "#00B9F2")
+  
+  top_gon <- render_gon(7, center_x, center_y, size, color="black")
+  top_geom <- gon_2_point(top_gon, elevation = size/3*2, height = size/3, color="grey50")
+  
+  bot_gon <- render_gon(7, center_x, center_y, size*0.5, color="black")
+  bot_geom <- gon_2_point(top_gon, elevation = size/3*2, height = size/5-size/3, color="grey50")
+  
+  robber <- combine_geoms(list(tractor_geom, glass_geom, top_geom, bot_geom))
+}
+
 # piece_maker <- function(piece_type, center_x, center_y, center_z,
 #                         compass_angle, elevation_angle, color='grey50'){
 #   center_vec <- c(center_x, center_y, center_z)
@@ -734,6 +750,13 @@ piece_maker <- function(piece_type, data_df_row, color='grey50'){
     game_piece <- road_maker(coords_1 = unlist(data_df_row[,c("x", "y", "z")]),
                              coords_2 = unlist(data_df_row2[,c("x", "y", "z")]),
                              road_color = color)
+  } else if(piece_type=="robber"){
+    game_piece <- robber_piece(center_x = data_df_row$x, 
+                                   center_y = data_df_row$y) %>%
+      move_geom(delta_z = data_df_row$z) %>%
+      rotate_geom(z_deg = data_df_row$compass_angle, manual_center = center_vec) %>%
+      rotate_geom(y_deg = data_df_row$elevation_angle, manual_center = center_vec) %>%
+      rotate_geom(z_deg = -data_df_row$compass_angle, manual_center = center_vec)
   } else {
     stop(paste("Piece type", piece_type, "not supported"))
   }
@@ -813,6 +836,31 @@ worldbuilder <- function(globe_layout){
 
 
 # Debug ----
+
+debug_row <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
+piece_data <- piece_maker("robber", data_df_row = debug_row)
+set_axis <- list(range=max(abs(piece_data$vertices))*c(-1, 1),
+                 autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
+                 showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+plot_ly() %>%
+  add_trace(type="mesh3d",
+            x=piece_data$vertices$x,
+            y=piece_data$vertices$y,
+            z=piece_data$vertices$z,
+            i=piece_data$faces$i,
+            j=piece_data$faces$j,
+            k=piece_data$faces$k,
+            facecolor=rgb(t(col2rgb(piece_data$faces$color)), maxColorValue = 255),
+            lighting=list(diffuse=1),
+            hoverinfo="none") %>%
+  layout(scene=list(
+    xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+    aspectmode='cube',
+    camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+    bgcolor="black"),
+    margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
+  config(displayModeBar = FALSE, scrollZoom=FALSE)
+
 # set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
 #                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
 #                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)

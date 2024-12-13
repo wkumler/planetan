@@ -488,21 +488,30 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
-    # This feels like it should be added with an updatePlotlyProxy, not here...
-    # I like the elegance of game_world only really being the globe itself
-    # and then the traces are added/removed later
-    # Feeling pretty good about visuals/meshes being added via updatePlotly
-    # all into trace 0 because those shouldn't need to be removed later
-    # and that makes keeping track of the trace numbers a lot easier.
-    marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
-    ### THIS NEEDS TO BE FIXED LATER
-    settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
-    
+    center_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
+    robber_init <- piece_maker(piece_type = "robber", center_spot)
     ply <- ply %>%
-      add_trace(type="scatter3d", mode="markers", data = settlement_spots,
+      add_trace(type="mesh3d", data = robber_init,
+                x=~vertices$x, y=~vertices$y, z=~vertices$z,
+                i=~faces$i, j=~faces$j, k=~faces$k,
+                facecolor=rgb(t(col2rgb(robber_init$faces$color)),
+                              maxColorValue = 255),
+                lighting=list(diffuse=1),
+                hoverinfo="none")
+    
+    
+    # This feels like it could be added with an updatePlotlyProxy, not here...
+    # Trace 0 = globe
+    # Trace 1 = robber
+    # Trace 2 = all markers
+    # Trace 3 = selected spot: ed()
+    marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
+    init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
+    ply <- ply %>%
+      add_trace(type="scatter3d", mode="markers", data = init_settlement_spots,
                 x=~x, y=~y, z=~z, key=~id,
                 marker=list(color="white", opacity=0.001, size=50))
-                # apparently opacity=0 doesn't work lmao and returns 1
+    # apparently opacity=0 doesn't work lmao and returns 1
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
@@ -510,15 +519,6 @@ server <- function(input, output, session){
     req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("game_world clicked!")
     print(ed())
-    # Safe to delete trace 2 if it doesn't exist
-    # I need some way of managing what traces have been added and in what order
-    # Trace stack will consist of intermixed markers and meshes
-    # Meshes will accumulate over time (or max out at two of them?) but not be removed
-    # Markers will get added and removed
-    # trace_stack <- data.frame(name=c("globe"), trace_id=0)
-    
-    # Initially, trace 0 is the globe and trace 1 is the markers added afterward
-    
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", 2) # Remove colored trace if it exists
     newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
                      mode = "markers", marker=list(color="red", opacity=0.2, size=50))
