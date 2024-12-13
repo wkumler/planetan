@@ -453,9 +453,9 @@ server <- function(input, output, session){
     )
     plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     plotlyProxy("game_world_static") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
     
-    # print(my_build_list())
-    # print(build_list()())
     my_build_list(build_list()())
   })
   
@@ -553,10 +553,10 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
