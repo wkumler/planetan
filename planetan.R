@@ -31,16 +31,13 @@ server <- function(input, output, session){
   
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
-  point_selected <- reactiveVal(FALSE)
   my_build_list <- reactiveVal(data.frame(id=numeric(), owner=character(), build=character()))
-  play_order <- reactiveVal()
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
   game_status <- reactiveVal(function(){})
   current_player <- reactiveVal(function(){})
   build_list <- reactiveVal(function(){})
-  setup_stack <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -225,12 +222,6 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
       readFunc = readRDS
     ))
-    setup_stack(reactiveFileReader(
-      intervalMillis = 100, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/setup_stack.rds"), 
-      readFunc = readRDS
-    ))
 
     print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
@@ -387,78 +378,18 @@ server <- function(input, output, session){
     setGameData("marker_data_all", marker_data_all, print_value = FALSE)
     setGameData("marker_data_unmoved", marker_data_unmoved, print_value = FALSE)
     setGameData("nearby_structures", nearby_structures, print_value = FALSE)
-    setup_stack <- init_player_list()()$uname %>%
-      c(rev(.)) %>%
-      rep(each=2) %>%
-      paste0(c("_settlement", "_road"))
-    setGameData("setup_stack", setup_stack)
     setGameData("build_list", data.frame(id=numeric(), owner=character(), build=character()))
     setGameData("game_status", "setup")
   })
   observeEvent(input$build_here_setup, {
     print("input$build_here_setup clicked")
-    # Wipe existing clickables
-    # Add item to build_list()() -> Triggers redraw via observeEvent(build_list()())
-    # Iterate setup_stack()()
-    # Update current_player()()
-    # Add new clickables
-    
-    print("Wiping existing clickables")
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    
+
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
-    
-    print("Iterating setup_stack()()")
-    setGameData("setup_stack", setup_stack()()[-1])
-    
-    print("Determining new clickable locations")
-    marker_data_all <- getGameData("marker_data_all", print_value = FALSE)
-    # If a settlement was built, render road locations
-    # If a road was built, render settlement locations and move to next player
-    if(new_build$build=="road"){
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
-      built_verts <- init_settlement_spots[build_list()()$id,]
-      too_close_verts <- unique(unlist(merge(built_verts, nearby_structures$verts)$nearest_verts))
-      marker_spots <- init_settlement_spots[!init_settlement_spots$id%in%too_close_verts,]
-      
-      # Move to next player
-      print("Iterating current_player()()")
-      current_player_idx <- which(init_player_list()()$uname==current_player()())
-      next_player_idx <- current_player_idx%%nrow(init_player_list()())+1
-      next_player <- init_player_list()()$uname[next_player_idx]
-      setGameData("current_player", next_player)
-      marker_player <- next_player
-    } else {
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="edge",]
-      nearby_edges <- unlist(nearby_structures$verts$nearest_edges[new_build$id])
-      marker_spots <- init_settlement_spots[init_settlement_spots$id%in%nearby_edges,]
-      marker_player <- current_player()()
-    }
-    
-    # Add markers to world if I'm the current_player()()
-    # At this point, current_player()() is still whatever it was before
-    # However, we want to add points for the NEXT player
-    # marker_player is the player for whom we WANT markers rendered
-    # i.e. admin(p1) if a settlement was built and newplayer (p2) if a road was built
-    if(input$uname==marker_player){
-      print("Adding clickables to map")
-      newtrace <- list(
-        x = marker_spots$x,
-        y = marker_spots$y,
-        z = marker_spots$z,
-        key = marker_spots$id,
-        type = "scatter3d",
-        mode = "markers",
-        marker = list(color="white", opacity=0.1, size=50)
-      )
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
-    }
   })
   observeEvent(build_list()(), {
     print(paste("build_list()() triggered for", input$uname))
@@ -476,7 +407,7 @@ server <- function(input, output, session){
     
     nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
     mesh_offset <- sum(merge(my_build_list(), nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
-
+    
     newtrace <- list(
       x=list(as.list(new_geom_combined$vertices$x)),
       y=list(as.list(new_geom_combined$vertices$y)),
@@ -487,7 +418,7 @@ server <- function(input, output, session){
       facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
     )
     plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
-
+    
     my_build_list(build_list()())
   })
   output$game_world <- renderPlotly({
