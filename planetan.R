@@ -2,6 +2,10 @@
 library(shiny)
 library(plotly)
 source("scripts/resource_creation.R")
+anti_merge <- function(x, y, by) {
+  x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
+}
+
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ## To-do:
@@ -32,12 +36,16 @@ server <- function(input, output, session){
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
   my_build_list <- reactiveVal(data.frame(id=numeric(), owner=character(), build=character()))
+  my_marker_data <- reactiveVal(data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
+                                           compass_angle=numeric(), elevation_angle=numeric(),
+                                           lab=character()))
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
   game_status <- reactiveVal(function(){})
   current_player <- reactiveVal(function(){})
   build_list <- reactiveVal(function(){})
+  marker_data <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -222,6 +230,12 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
       readFunc = readRDS
     ))
+    marker_data(reactiveFileReader(
+      intervalMillis = 100, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
+      readFunc = readRDS
+    ))
 
     print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
@@ -379,10 +393,14 @@ server <- function(input, output, session){
     setGameData("marker_data_unmoved", marker_data_unmoved, print_value = FALSE)
     setGameData("nearby_structures", nearby_structures, print_value = FALSE)
     setGameData("build_list", data.frame(id=numeric(), owner=character(), build=character()))
+    setGameData("marker_data", data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
+                                          compass_angle=numeric(), elevation_angle=numeric(),
+                                          lab=character()))
     setGameData("game_status", "setup")
   })
   observeEvent(input$build_here_setup, {
     print("input$build_here_setup clicked")
+    print(ed())
 
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
@@ -390,12 +408,33 @@ server <- function(input, output, session){
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
+    
+    if(new_build$build=="road"){
+      print("Updating marker_data()()")
+      init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
+      built_verts <- init_settlement_spots[build_list()()$id,]
+      too_close_verts <- unique(unlist(merge(built_verts, nearby_structures$verts)$nearest_verts))
+      marker_spots <- init_settlement_spots[!init_settlement_spots$id%in%too_close_verts,]
+      marker_spots <- marker_spots[!marker_spots$id%in%built_verts$id,]
+    } else {
+      init_settlement_spots <- marker_data_all[marker_data_all$lab=="edge",]
+      nearby_edges <- unlist(nearby_structures$verts$nearest_edges[new_build$id])
+      marker_spots <- init_settlement_spots[init_settlement_spots$id%in%nearby_edges,]
+    }
+    print("Updating marker_data()()")
+    setGameData("marker_data", marker_spots)
+    
+    if(new_build$build=="road"){
+      print("Iterating current_player()()")
+      current_player_idx <- which(init_player_list()()$uname==current_player()())
+      next_player_idx <- current_player_idx%%nrow(init_player_list()())+1
+      next_player <- init_player_list()()$uname[next_player_idx]
+      setGameData("current_player", next_player)
+    }
   })
   observeEvent(build_list()(), {
     print(paste("build_list()() triggered for", input$uname))
-    anti_merge <- function(x, y, by) {
-      x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
-    }
+
     new_build_data <- anti_merge(build_list()(), my_build_list(), by=c("id", "build"))
     if(nrow(new_build_data)==0){
       return(NULL)
@@ -419,7 +458,37 @@ server <- function(input, output, session){
     )
     plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     
+    print("Updating my_build_list to match disk")
     my_build_list(build_list()())
+  })
+  observeEvent(marker_data()(), {
+    print(paste("marker_data()() triggered for", input$uname))
+    new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
+    if(nrow(new_marker_data)==0){
+      return(NULL)
+    }
+    
+    print("Wiping existing clickables")
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    
+    if(input$uname==getGameData("current_player")){
+      print(paste("Adding clickables to map for", input$uname))
+      newtrace <- list(
+        x = as.list(new_marker_data$x),
+        y = as.list(new_marker_data$y),
+        z = as.list(new_marker_data$z),
+        key = as.list(new_marker_data$id),
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(color="white", opacity=0.1, size=50)
+      )
+      plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+    } else {
+      print(paste("No markers to add for", input$uname))
+    }
+    print("Updating my_marker_data to match disk")
+    my_marker_data(marker_data()())
   })
   output$game_world <- renderPlotly({
     print("Re-rendering game_world")
@@ -479,9 +548,9 @@ server <- function(input, output, session){
     req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("game_world clicked!")
     print(ed())
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3)) # Remove colored trace if it exists
-    newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), type = "scatter3d",
+    newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), key=list(ed()$key), type = "scatter3d",
                      mode = "markers", marker=list(color="red", opacity=0.2, size=50))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3)) # Remove colored trace if it exists
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
