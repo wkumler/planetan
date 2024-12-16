@@ -424,11 +424,15 @@ server <- function(input, output, session){
     print("Updating marker_data()()")
     setGameData("marker_data", marker_spots)
     
+    setup_stack <- init_player_list()()$uname
+    setup_stack <- c(setup_stack, rev(setup_stack), "begin")
+    next_player <- setup_stack[floor(nrow(getGameData("build_list"))/2)+1]
+    if(next_player=="begin"){
+      setGameData("game_status", "gameplay")
+      setGameData("current_player", setup_stack[1])
+      return(NULL)
+    } 
     if(new_build$build=="road"){
-      print("Iterating current_player()()")
-      current_player_idx <- which(init_player_list()()$uname==current_player()())
-      next_player_idx <- current_player_idx%%nrow(init_player_list()())+1
-      next_player <- init_player_list()()$uname[next_player_idx]
       setGameData("current_player", next_player)
     }
   })
