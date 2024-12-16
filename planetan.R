@@ -441,7 +441,7 @@ server <- function(input, output, session){
     }
     new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
     new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
-    new_geoms <- mapply(piece_maker, new_build_data$build, new_build_row_list, SIMPLIFY = FALSE)
+    new_geoms <- mapply(piece_maker, new_build_row_data$build, new_build_row_list, SIMPLIFY = FALSE)
     new_geom_combined <- combine_geoms(new_geoms)
     
     nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
