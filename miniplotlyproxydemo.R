@@ -65,7 +65,7 @@ server <- function(input, output, session){
     #   plotlyProxyInvoke("restyle", list(marker = list(color = "blue")), 0)
     
     # Adds/removes an additional trace with each click
-    newtrace <- list(x = list(event$x), y = list(event$y), type = "scatter",
+    newtrace <- list(x = list(event$x, event$x+1), y = list(event$y, event$y+1), type = "scatter",
                      mode = "markers", marker=list(color="blue"))
     plotlyProxy("plot") %>%
       plotlyProxyInvoke("deleteTraces", list(1))
@@ -73,6 +73,31 @@ server <- function(input, output, session){
       plotlyProxyInvoke("addTraces", newtrace)
   })
 }
+
+
+server <- function(input, output, session){
+  output$plot <- renderPlotly({
+    plot_ly(x = 1:10, y = 1:10, z=10:1, mode = "markers", type = "scatter3d",
+            marker = list(color = "red"))
+  })
+  
+  observeEvent(event_data("plotly_click"), {
+    event <- event_data("plotly_click")
+    print(event)
+    
+    # Adds/removes an additional trace with each click
+    newtrace <- list(x = as.list(c(1,2,3)), y = list(3,2,1), z=list(3,2,1), type = "scatter3d",
+                     mode = "markers", marker=list(color="blue"))
+    plotlyProxy("plot") %>%
+      plotlyProxyInvoke("deleteTraces", list(1))
+    plotlyProxy("plot") %>%
+      plotlyProxyInvoke("addTraces", newtrace)
+  })
+}
+
+
+shinyApp(ui, server)
+
 
 # Server showing how to extendTraces
 server <- function(input, output, session) {
@@ -114,5 +139,4 @@ server <- function(input, output, session) {
 }
 
 
-shinyApp(ui, server)
 
