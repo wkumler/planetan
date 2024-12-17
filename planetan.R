@@ -6,6 +6,11 @@ source("scripts/resource_creation.R")
 anti_merge <- function(x, y, by) {
   x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
 }
+camera_eye <- function() {
+  theta <- runif(1, 0, 2 * pi)
+  c(1.2 * cos(theta), 1.2 * sin(theta))
+}
+
 
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
@@ -610,6 +615,7 @@ server <- function(input, output, session){
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
     # Maybe build ply() as a reactive object (static object?)
     # at the same time that the world itself is built?
+    start_camera <- camera_eye()
     ply <- plot_ly(source = "setup_game_world") %>%
       add_trace(type="mesh3d", data = globe_plates,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
@@ -621,7 +627,7 @@ server <- function(input, output, session){
       layout(scene=list(
         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
         aspectmode='cube',
-        camera=list(eye=list(x=0.8, y=0.8, z=0.8)),
+        camera=list(eye=list(x=start_camera[1], y=start_camera[2], z=0.8)),
         bgcolor="black"
       ),
       margin=list(l=0, r=0, b=0, t=0, pad=0),
@@ -678,6 +684,7 @@ server <- function(input, output, session){
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
     # Maybe build ply() as a reactive object (static object?)
     # at the same time that the world itself is built?
+    start_camera <- camera_eye()
     ply <- plot_ly(source = "game_world") %>%
       add_trace(type="mesh3d", data = all_builds,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
@@ -689,7 +696,7 @@ server <- function(input, output, session){
       layout(scene=list(
         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
         aspectmode='cube',
-        camera=list(eye=list(x=0.8, y=0.8, z=0.8)),
+        camera=list(eye=list(x=start_camera[1], y=start_camera[2], z=0.8)),
         bgcolor="black"
       ),
       margin=list(l=0, r=0, b=0, t=0, pad=0),
