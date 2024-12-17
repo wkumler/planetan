@@ -40,6 +40,7 @@ server <- function(input, output, session){
   my_marker_data <- reactiveVal(data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
                                            compass_angle=numeric(), elevation_angle=numeric(),
                                            lab=character()))
+  my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)))
   dice_rolled <- reactiveVal(FALSE)
   robber_active <- reactiveVal(FALSE)
   # These vars are fancy reactives because they're shared ACROSS sessions
@@ -49,6 +50,7 @@ server <- function(input, output, session){
   current_player <- reactiveVal(function(){})
   build_list <- reactiveVal(function(){})
   marker_data <- reactiveVal(function(){})
+  robber_data <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -239,6 +241,13 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
       readFunc = readRDS
     ))
+    robber_data(reactiveFileReader(
+      intervalMillis = 1000, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/robber_data.rds"), 
+      readFunc = readRDS
+    ))
+    
 
     print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
@@ -442,6 +451,9 @@ server <- function(input, output, session){
     setGameData("marker_data", data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
                                           compass_angle=numeric(), elevation_angle=numeric(),
                                           lab=character()))
+    setGameData("robber_data", piece_maker(
+      piece_type = "robber", data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0))
+    )
     setGameData("game_status", "setup")
   })
   observeEvent(input$build_here_setup, {
@@ -560,6 +572,35 @@ server <- function(input, output, session){
     print("Updating my_marker_data to match disk")
     my_marker_data(marker_data()())
   })
+  observeEvent(robber_data()(), {
+    print(paste("robber_data()() triggered for", input$uname))
+    if(identical(my_robber_data(), robber_data()())){
+      print("Robber is in correct spot already")
+      return(NULL)
+    }
+    
+    print("Removing existing robber (and any clickables)")
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
+    
+    print("Adding robber mesh to game_world")
+    robber_init <- getGameData("robber_data")
+    newtrace <- list(
+      type="mesh3d",
+      x=as.list(robber_init$vertices$x),
+      y=as.list(robber_init$vertices$y),
+      z=as.list(robber_init$vertices$z),
+      i=as.list(robber_init$faces$i),
+      j=as.list(robber_init$faces$j),
+      k=as.list(robber_init$faces$k),
+      facecolor=as.list(robber_init$faces$color)
+    )
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
+    
+    my_robber_data(robber_data()())
+  })
+  
   output$setup_game_world <- renderPlotly({
     print("Re-rendering setup_game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
@@ -587,10 +628,8 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
-    center_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
-    robber_init <- piece_maker(piece_type = "robber", center_spot)
     ply <- ply %>%
-      add_trace(type="mesh3d", data = robber_init,
+      add_trace(type="mesh3d", data = getGameData("robber_data"),
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
                 facecolor=rgb(t(col2rgb(robber_init$faces$color)),
@@ -627,6 +666,12 @@ server <- function(input, output, session){
   output$game_world <- renderPlotly({
     print("Re-rendering setup_game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
+    
+    static_build_list <- getGameData("build_list")
+    setup_build_data <- merge(static_build_list, marker_data_unmoved)
+    setup_build_list <- split(setup_build_data, seq_len(nrow(setup_build_data)))
+    piece_list <- mapply(piece_maker, setup_build_data$build, setup_build_list, color="red", SIMPLIFY = FALSE)
+    all_builds <- combine_geoms(list(globe_plates, combine_geoms(piece_list)))
 
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                      autorange=FALSE, showspikes=FALSE,
@@ -634,10 +679,10 @@ server <- function(input, output, session){
     # Maybe build ply() as a reactive object (static object?)
     # at the same time that the world itself is built?
     ply <- plot_ly(source = "game_world") %>%
-      add_trace(type="mesh3d", data = globe_plates,
+      add_trace(type="mesh3d", data = all_builds,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
-                facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                facecolor=rgb(t(col2rgb(all_builds$faces$color)),
                               maxColorValue = 255),
                 lighting=list(diffuse=1),
                 hoverinfo="none") %>%
@@ -651,10 +696,8 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
-    center_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
-    robber_init <- piece_maker(piece_type = "robber", center_spot)
     ply <- ply %>%
-      add_trace(type="mesh3d", data = robber_init,
+      add_trace(type="mesh3d", data = getGameData("robber_data"),
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
                 facecolor=rgb(t(col2rgb(robber_init$faces$color)),
@@ -708,24 +751,7 @@ server <- function(input, output, session){
     robber_row_data <- face_markers[face_markers$id==ed()$key,]
     robber_init <- piece_maker(piece_type = "robber", robber_row_data)
     
-    print("Wiping existing clickables")
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
-    
-    print("Adding robber mesh to game_world")
-    newtrace <- list(
-      type="mesh3d",
-      x=as.list(robber_init$vertices$x),
-      y=as.list(robber_init$vertices$y),
-      z=as.list(robber_init$vertices$z),
-      i=as.list(robber_init$faces$i),
-      j=as.list(robber_init$faces$j),
-      k=as.list(robber_init$faces$k),
-      facecolor=as.list(robber_init$faces$color)
-    )
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
-    
+    setGameData("robber_data", robber_init)
     robber_active(FALSE)
   })
   observeEvent(input$build_here, {
@@ -780,5 +806,5 @@ server <- function(input, output, session){
 # if(!file.exists("game_files/existing_game_ids.rds")){
 #   saveRDS("ABC", "game_files/existing_game_ids.rds")
 # }
-# browseURL("http://127.0.0.1:5013/")
+browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
