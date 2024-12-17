@@ -45,9 +45,15 @@ server <- function(input, output, session){
   my_marker_data <- reactiveVal(data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
                                            compass_angle=numeric(), elevation_angle=numeric(),
                                            lab=character()))
-  my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)))
-  dice_rolled <- reactiveVal(FALSE)
+  my_player_resources <- reactiveVal(data.frame(
+    uname=character(), vp=numeric(), knights=numeric(),
+    wood=numeric(), brick=numeric(), wool=numeric(), wheat=numeric(), ore=numeric()
+  ))
+  robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
+  my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
   robber_active <- reactiveVal(FALSE)
+
+  dice_rolled <- reactiveVal(FALSE)
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
@@ -56,6 +62,7 @@ server <- function(input, output, session){
   build_list <- reactiveVal(function(){})
   marker_data <- reactiveVal(function(){})
   robber_data <- reactiveVal(function(){})
+  player_resources <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -252,9 +259,13 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/robber_data.rds"), 
       readFunc = readRDS
     ))
+    player_resources(reactiveFileReader(
+      intervalMillis = 1000, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/player_resources.rds"), 
+      readFunc = readRDS
+    ))
     
-
-    print(paste("First player up is:", current_player()()))
     if(game_status()()=="setup"){
       print("Returning setup div")
       if(input$uname==current_player()()){
@@ -263,7 +274,8 @@ server <- function(input, output, session){
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
-            tableOutput("build_info")
+            tableOutput("build_info"),
+            tableOutput("resource_counts")
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh")
@@ -274,7 +286,8 @@ server <- function(input, output, session){
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3(paste0("Waiting for ", current_player()(), " to choose setup spots.")),
-            tableOutput("build_info")
+            tableOutput("build_info"),
+            tableOutput("resource_counts")
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh")
@@ -292,19 +305,25 @@ server <- function(input, output, session){
             if(dice_rolled()==FALSE){
               tagList(
                 h3("Roll the dice to begin your turn."),
-                actionButton("roll_dice", "Roll the dice")
+                actionButton("roll_dice", "Roll the dice"),
+                tableOutput("build_info"),
+                tableOutput("resource_counts")
               )
             } else {
               if(robber_active()){
                 tagList(
                   h3("Robber active! Choose where it should go."),
-                  actionButton("move_robber", "Move the robber here", disabled = TRUE)
+                  actionButton("move_robber", "Move the robber here", disabled = TRUE),
+                  tableOutput("build_info"),
+                  tableOutput("resource_counts")
                 )
               } else {
                 tagList(
                   h3("Build, offer a trade, or end your turn."),
                   actionButton("offer_trade", "Offer a trade"),
-                  actionButton("end_turn", "End turn")
+                  actionButton("end_turn", "End turn"),
+                  tableOutput("build_info"),
+                  tableOutput("resource_counts")
                 )
               }
             }
@@ -317,7 +336,9 @@ server <- function(input, output, session){
         gameplay_div <- tagList(
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-            h3(paste0("Waiting for ", current_player()(), " to finish their turn."))
+            h3(paste0("Waiting for ", current_player()(), " to finish their turn.")),
+            tableOutput("build_info"),
+            tableOutput("resource_counts")
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh")
@@ -336,6 +357,129 @@ server <- function(input, output, session){
   output$build_info <- renderTable({
     print("Rendering build_info as a table!")
     build_list()()
+  })
+  output$resource_counts <- renderTable({
+    print("Rendering player_resources as a table!")
+    player_resources()()
+  })
+  
+  observeEvent(build_list()(), {
+    print(paste("build_list()() triggered for", input$uname))
+    
+    new_build_data <- anti_merge(build_list()(), my_build_list(), by=c("id", "build"))
+    if(nrow(new_build_data)==0){
+      print("No new builds to add")
+      return(NULL)
+    }
+    new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
+    new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
+    new_geoms <- mapply(piece_maker, new_build_row_data$build, new_build_row_list, SIMPLIFY = FALSE)
+    new_geom_combined <- combine_geoms(new_geoms)
+    
+    nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
+    globe_plates <- getGameData("globe_plates", print_value = FALSE)
+    nvert_globe_plates <- nrow(globe_plates$vertices)
+    mesh_offset <- sum(merge(my_build_list(), nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
+    
+    newtrace <- list(
+      x=list(as.list(new_geom_combined$vertices$x)),
+      y=list(as.list(new_geom_combined$vertices$y)),
+      z=list(as.list(new_geom_combined$vertices$z)),
+      i=list(as.list(new_geom_combined$faces$i+mesh_offset)),
+      j=list(as.list(new_geom_combined$faces$j+mesh_offset)),
+      k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
+      facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
+    )
+    if(getGameData("game_status")=="setup"){
+      print("Placing new mesh on setup_game_world")
+      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    } else {
+      print("Placing new mesh on game_world")
+      plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    }
+    
+    print("Updating my_build_list to match disk")
+    my_build_list(build_list()())
+  })
+  observeEvent(marker_data()(), {
+    print(paste("marker_data()() triggered for", input$uname))
+    new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
+    if(nrow(new_marker_data)==0){
+      print("No markers to add")
+      return(NULL)
+    }
+    
+    print("Wiping existing clickables")
+    if(getGameData("game_status")=="setup"){
+      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    } else {
+      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    }
+    
+    if(input$uname==getGameData("current_player")){
+      print(paste("Adding clickables to map for", input$uname))
+      newtrace <- list(
+        x = as.list(new_marker_data$x),
+        y = as.list(new_marker_data$y),
+        z = as.list(new_marker_data$z),
+        key = as.list(new_marker_data$id),
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(color="white", opacity=0.1, size=50)
+      )
+      if(getGameData("game_status")=="setup"){
+        print("Adding markers to setup_game_world")
+        plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+      } else {
+        print("Adding markers to game_world")
+        plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+      }
+    } else {
+      print(paste("No markers to add for", input$uname))
+    }
+    print("Updating my_marker_data to match disk")
+    my_marker_data(marker_data()())
+  })
+  observeEvent(robber_data()(), {
+    print(paste("robber_data()() triggered for", input$uname))
+    if(identical(my_robber_data(), robber_data()())){
+      print("Robber is in correct spot already")
+      return(NULL)
+    }
+    
+    print("Removing existing robber (and any clickables)")
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
+    
+    print("Adding robber mesh to game_world")
+    robber_init <- getGameData("robber_data")
+    newtrace <- list(
+      type="mesh3d",
+      x=as.list(robber_init$vertices$x),
+      y=as.list(robber_init$vertices$y),
+      z=as.list(robber_init$vertices$z),
+      i=as.list(robber_init$faces$i),
+      j=as.list(robber_init$faces$j),
+      k=as.list(robber_init$faces$k),
+      facecolor=as.list(robber_init$faces$color)
+    )
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
+    
+    my_robber_data(robber_data()())
+  })
+  observeEvent(player_resources()(), {
+    print(paste("player_resources()() triggered for", input$uname))
+    if(identical(my_player_resources(), player_resources()())){
+      print("No resource update needed")
+      return(NULL)
+    }
+    
+    
+    
+    my_player_resources(player_resources()())
   })
   
   observeEvent(input$new_game_button, {
@@ -459,151 +603,11 @@ server <- function(input, output, session){
     setGameData("robber_data", piece_maker(
       piece_type = "robber", data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0))
     )
+    setGameData("player_resources", data.frame(
+      uname=init_player_list()()$uname, vp=2, knights=0,
+      wood=0, brick=0, wool=0, wheat=0, ore=0
+    ))
     setGameData("game_status", "setup")
-  })
-  observeEvent(input$build_here_setup, {
-    print("input$build_here_setup clicked")
-
-    print("Updating build_list()()")
-    marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
-    build_spot <- marker_data_unmoved[setup_ed()$key,]
-    build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
-    new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
-    setGameData("build_list", rbind(build_list()(), new_build))
-    
-    if(new_build$build=="road"){
-      print("Updating marker_data()()")
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
-      built_verts <- init_settlement_spots[build_list()()$id,]
-      too_close_verts <- unique(unlist(merge(built_verts, nearby_structures$verts)$nearest_verts))
-      marker_spots <- init_settlement_spots[!init_settlement_spots$id%in%too_close_verts,]
-      marker_spots <- marker_spots[!marker_spots$id%in%built_verts$id,]
-    } else {
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="edge",]
-      nearby_edges <- unlist(nearby_structures$verts$nearest_edges[new_build$id])
-      marker_spots <- init_settlement_spots[init_settlement_spots$id%in%nearby_edges,]
-    }
-    print("Updating marker_data()()")
-    setGameData("marker_data", marker_spots)
-    
-    setup_stack <- init_player_list()()$uname
-    setup_stack <- c(setup_stack, rev(setup_stack), "begin")
-    next_player <- setup_stack[floor(nrow(getGameData("build_list"))/2)+1]
-    if(next_player=="begin"){
-      setGameData("game_status", "gameplay")
-      setGameData("current_player", setup_stack[1])
-      return(NULL)
-    } 
-    if(new_build$build=="road"){
-      setGameData("current_player", next_player)
-    }
-  })
-  observeEvent(build_list()(), {
-    print(paste("build_list()() triggered for", input$uname))
-
-    new_build_data <- anti_merge(build_list()(), my_build_list(), by=c("id", "build"))
-    if(nrow(new_build_data)==0){
-      print("No new builds to add")
-      return(NULL)
-    }
-    new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
-    new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
-    new_geoms <- mapply(piece_maker, new_build_row_data$build, new_build_row_list, SIMPLIFY = FALSE)
-    new_geom_combined <- combine_geoms(new_geoms)
-    
-    nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
-    globe_plates <- getGameData("globe_plates", print_value = FALSE)
-    nvert_globe_plates <- nrow(globe_plates$vertices)
-    mesh_offset <- sum(merge(my_build_list(), nvert_piece_vals, all.y = FALSE)$nvert) + nvert_globe_plates
-    
-    newtrace <- list(
-      x=list(as.list(new_geom_combined$vertices$x)),
-      y=list(as.list(new_geom_combined$vertices$y)),
-      z=list(as.list(new_geom_combined$vertices$z)),
-      i=list(as.list(new_geom_combined$faces$i+mesh_offset)),
-      j=list(as.list(new_geom_combined$faces$j+mesh_offset)),
-      k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
-      facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
-    )
-    if(getGameData("game_status")=="setup"){
-      print("Placing new mesh on setup_game_world")
-      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
-    } else {
-      print("Placing new mesh on game_world")
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
-    }
-    
-    print("Updating my_build_list to match disk")
-    my_build_list(build_list()())
-  })
-  observeEvent(marker_data()(), {
-    print(paste("marker_data()() triggered for", input$uname))
-    new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
-    if(nrow(new_marker_data)==0){
-      print("No markers to add")
-      return(NULL)
-    }
-    
-    print("Wiping existing clickables")
-    if(getGameData("game_status")=="setup"){
-      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    } else {
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    }
-    
-    if(input$uname==getGameData("current_player")){
-      print(paste("Adding clickables to map for", input$uname))
-      newtrace <- list(
-        x = as.list(new_marker_data$x),
-        y = as.list(new_marker_data$y),
-        z = as.list(new_marker_data$z),
-        key = as.list(new_marker_data$id),
-        type = "scatter3d",
-        mode = "markers",
-        marker = list(color="white", opacity=0.1, size=50)
-      )
-      if(getGameData("game_status")=="setup"){
-        print("Adding markers to setup_game_world")
-        plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
-      } else {
-        print("Adding markers to game_world")
-        plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
-      }
-    } else {
-      print(paste("No markers to add for", input$uname))
-    }
-    print("Updating my_marker_data to match disk")
-    my_marker_data(marker_data()())
-  })
-  observeEvent(robber_data()(), {
-    print(paste("robber_data()() triggered for", input$uname))
-    if(identical(my_robber_data(), robber_data()())){
-      print("Robber is in correct spot already")
-      return(NULL)
-    }
-    
-    print("Removing existing robber (and any clickables)")
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
-    
-    print("Adding robber mesh to game_world")
-    robber_init <- getGameData("robber_data")
-    newtrace <- list(
-      type="mesh3d",
-      x=as.list(robber_init$vertices$x),
-      y=as.list(robber_init$vertices$y),
-      z=as.list(robber_init$vertices$z),
-      i=as.list(robber_init$faces$i),
-      j=as.list(robber_init$faces$j),
-      k=as.list(robber_init$faces$k),
-      facecolor=as.list(robber_init$faces$color)
-    )
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
-    
-    my_robber_data(robber_data()())
   })
   
   output$setup_game_world <- renderPlotly({
@@ -667,6 +671,65 @@ server <- function(input, output, session){
     plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
+  })
+  observeEvent(input$build_here_setup, {
+    print("input$build_here_setup clicked")
+    
+    print("Updating build_list()()")
+    marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
+    print(setup_ed())
+    build_spot <- marker_data_unmoved[setup_ed()$key,]
+    build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
+    new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
+    setGameData("build_list", rbind(build_list()(), new_build))
+    
+    if(new_build$build=="road"){
+      print("Updating marker_data()()")
+      init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
+      built_verts <- init_settlement_spots[build_list()()$id,]
+      too_close_verts <- unique(unlist(merge(built_verts, nearby_structures$verts)$nearest_verts))
+      marker_spots <- init_settlement_spots[!init_settlement_spots$id%in%too_close_verts,]
+      marker_spots <- marker_spots[!marker_spots$id%in%built_verts$id,]
+    } else {
+      init_settlement_spots <- marker_data_all[marker_data_all$lab=="edge",]
+      nearby_edges <- unlist(nearby_structures$verts$nearest_edges[new_build$id])
+      marker_spots <- init_settlement_spots[init_settlement_spots$id%in%nearby_edges,]
+    }
+    print("Updating marker_data()()")
+    setGameData("marker_data", marker_spots)
+    
+    setup_stack <- init_player_list()()$uname
+    setup_stack <- c(setup_stack, rev(setup_stack), "begin")
+    next_player <- setup_stack[floor(nrow(getGameData("build_list"))/2)+1]
+    if(next_player=="begin"){
+      setGameData("game_status", "gameplay")
+      setGameData("current_player", setup_stack[1])
+      
+      # Allocate initial resources to players
+      settle_resources <- build_list()()[build_list()()$build=="settlement",] %>%
+        .[duplicated(.$owner),] %>%
+        merge(nearby_structures$verts)
+      unlist_resources <- data.frame(
+        vert_id=rep(settle_resources$id, each=3),
+        owner=rep(settle_resources$owner, each=3),
+        id=unlist(settle_resources$nearest_faces)
+      ) %>% 
+        merge(resource_layout[c("id", "hex_resources")]) %>%
+        .[.$hex_resources!="snow",]
+      static_player_resources <- getGameData("player_resources")
+      for(i in seq_len(nrow(unlist_resources))){
+        player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
+        resource_col <- as.character(unlist_resources$hex_resources[i])
+        static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+1
+      }
+      setGameData("player_resources", static_player_resources)
+
+      # Exit before incrementing player number
+      return(NULL)
+    }
+    if(new_build$build=="road"){
+      setGameData("current_player", next_player)
+    }
   })
   
   output$game_world <- renderPlotly({
