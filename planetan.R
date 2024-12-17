@@ -249,7 +249,7 @@ server <- function(input, output, session){
             tableOutput("build_info")
           ),
           mainPanel(
-            plotlyOutput("game_world", height = "100vh")
+            plotlyOutput("setup_game_world", height = "100vh")
           )
         )
       } else {
@@ -260,7 +260,7 @@ server <- function(input, output, session){
             tableOutput("build_info")
           ),
           mainPanel(
-            plotlyOutput("game_world", height = "100vh")
+            plotlyOutput("setup_game_world", height = "100vh")
           )
         )
       }
@@ -400,11 +400,10 @@ server <- function(input, output, session){
   })
   observeEvent(input$build_here_setup, {
     print("input$build_here_setup clicked")
-    print(ed())
 
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
-    build_spot <- marker_data_unmoved[ed()$key,]
+    build_spot <- marker_data_unmoved[setup_ed()$key,]
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
@@ -460,7 +459,7 @@ server <- function(input, output, session){
       k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
       facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
     )
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("extendTraces", newtrace, list(0))
     
     print("Updating my_build_list to match disk")
     my_build_list(build_list()())
@@ -473,8 +472,8 @@ server <- function(input, output, session){
     }
     
     print("Wiping existing clickables")
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
     
     if(input$uname==getGameData("current_player")){
       print(paste("Adding clickables to map for", input$uname))
@@ -487,15 +486,15 @@ server <- function(input, output, session){
         mode = "markers",
         marker = list(color="white", opacity=0.1, size=50)
       )
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     } else {
       print(paste("No markers to add for", input$uname))
     }
     print("Updating my_marker_data to match disk")
     my_marker_data(marker_data()())
   })
-  output$game_world <- renderPlotly({
-    print("Re-rendering game_world")
+  output$setup_game_world <- renderPlotly({
+    print("Re-rendering setup_game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
     # Non-local works great, at least for simple variables like this.
     nvert_globe_plates <<- nrow(globe_plates$vertices)
@@ -505,7 +504,7 @@ server <- function(input, output, session){
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
     # Maybe build ply() as a reactive object (static object?)
     # at the same time that the world itself is built?
-    ply <- plot_ly(source = "game_world") %>%
+    ply <- plot_ly(source = "setup_game_world") %>%
       add_trace(type="mesh3d", data = globe_plates,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
@@ -544,28 +543,28 @@ server <- function(input, output, session){
     # Trace 0 = globe
     # Trace 1 = robber
     # Trace 2 = all markers
-    # Trace 3 = selected spot: ed()
+    # Trace 3 = selected spot: setup_ed()
     return(ply)
   })
-  ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
-  observeEvent(ed(), {
-    req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
-    print("game_world clicked!")
-    print(ed())
-    newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), key=list(ed()$key), type = "scatter3d",
+  setup_ed <- reactive(event_data(event = "plotly_click", source = "setup_game_world"))
+  observeEvent(setup_ed(), {
+    req(setup_ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
+    print("setup_game_world clicked!")
+    print(setup_ed())
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3)) # Remove colored trace if it exists
+    newtrace <- list(x = list(setup_ed()$x), y = list(setup_ed()$y), z=list(setup_ed()$z), key=list(setup_ed()$key), type = "scatter3d",
                      mode = "markers", marker=list(color="red", opacity=0.2, size=50))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3)) # Remove colored trace if it exists
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
   })
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
