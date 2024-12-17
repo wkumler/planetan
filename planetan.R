@@ -1,5 +1,6 @@
 
 library(shiny)
+options(shiny.reactlog = TRUE)
 library(plotly)
 source("scripts/resource_creation.R")
 anti_merge <- function(x, y, by) {
@@ -219,19 +220,19 @@ server <- function(input, output, session){
     
     # Load current_player()() here to avoid loading it separately for host and join
     current_player(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
       readFunc = readRDS
     ))
     build_list(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
       readFunc = readRDS
     ))
     marker_data(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
       readFunc = readRDS
@@ -310,13 +311,13 @@ server <- function(input, output, session){
     setGameData("globe_plates", built_world, print_value = FALSE)
     
     init_player_list(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
       readFunc = readRDS
     ))
     game_status(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
       readFunc = readRDS
@@ -336,7 +337,7 @@ server <- function(input, output, session){
       # Initialize observer so that we can see when game_status.rds changes to "setup"
       # This observation doesn't happen here but instead above in input$game_start section
       game_status(reactiveFileReader(
-        intervalMillis = 100, 
+        intervalMillis = 1000, 
         session = session, 
         filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
         readFunc = readRDS
@@ -346,7 +347,7 @@ server <- function(input, output, session){
   observeEvent(input$join_waiting_room, {
     print("input$join_waiting_room clicked")
     init_player_list(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
       readFunc = readRDS
@@ -361,7 +362,7 @@ server <- function(input, output, session){
   })
   observeEvent(input$rejoin_existing_game, {
     init_player_list(reactiveFileReader(
-      intervalMillis = 100, 
+      intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/init_player_list.rds"), 
       readFunc = readRDS
@@ -561,10 +562,10 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
