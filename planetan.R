@@ -384,9 +384,13 @@ server <- function(input, output, session){
       print("No new builds to add")
       return(NULL)
     }
-    new_build_row_data <- merge(new_build_data[,c("id", "build"),drop=FALSE], marker_data_unmoved)
+    color_table <- getGameData("color_table")
+    colnames(color_table) <- c("owner", "pcolor")
+    new_build_data <- merge(new_build_data, color_table)
+    new_build_row_data <- merge(new_build_data[,c("id", "build", "pcolor"),drop=FALSE], marker_data_unmoved)
     new_build_row_list <- split(new_build_row_data, seq_len(nrow(new_build_row_data)))
-    new_geoms <- mapply(piece_maker, new_build_row_data$build, new_build_row_list, SIMPLIFY = FALSE)
+    new_geoms <- mapply(piece_maker, new_build_row_data$build, new_build_row_list, 
+                        color= new_build_row_data$pcolor, SIMPLIFY = FALSE)
     new_geom_combined <- combine_geoms(new_geoms)
     
     nvert_piece_vals <- data.frame(build=c("city", "settlement", "road"), nvert=c(80, 20, 10))
@@ -401,7 +405,7 @@ server <- function(input, output, session){
       i=list(as.list(new_geom_combined$faces$i+mesh_offset)),
       j=list(as.list(new_geom_combined$faces$j+mesh_offset)),
       k=list(as.list(new_geom_combined$faces$k+mesh_offset)),
-      facecolor=list(as.list(rep("red", nrow(new_geom_combined$faces))))
+      facecolor=list(as.list(new_geom_combined$faces$color))
     )
     if(getGameData("game_status")=="setup"){
       print("Placing new mesh on setup_game_world")
@@ -763,8 +767,14 @@ server <- function(input, output, session){
     
     static_build_list <- getGameData("build_list")
     setup_build_data <- merge(static_build_list, marker_data_unmoved)
+    
+    color_table <- getGameData("color_table")
+    colnames(color_table) <- c("owner", "pcolor")
+    setup_build_data <- merge(setup_build_data, color_table)
+    
     setup_build_list <- split(setup_build_data, seq_len(nrow(setup_build_data)))
-    piece_list <- mapply(piece_maker, setup_build_data$build, setup_build_list, color="red", SIMPLIFY = FALSE)
+    piece_list <- mapply(piece_maker, setup_build_data$build, setup_build_list, 
+                         color=setup_build_data$pcolor, SIMPLIFY = FALSE)
     all_builds <- combine_geoms(list(globe_plates, combine_geoms(piece_list)))
 
     set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
@@ -938,11 +948,8 @@ server <- function(input, output, session){
   
   i <- 0
   theta <- seq(0, 6 * pi, length.out = 360) 
-  z <- 0.8 * sin(theta / 3)
-  r <- sqrt(1.5^2 - z^2)
-  x <- r * cos(theta)
-  y <- r * sin(theta)
-  cam_coords <- data.frame(x = x, y = y, z = z)
+  r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
+  cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
   observe({
     req(input$rotate_world)
     if(input$rotate_world){
@@ -962,7 +969,7 @@ server <- function(input, output, session){
                         ), bgcolor="black", aspectmode="cube",
                         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
     }
-    invalidateLater(10, session)
+    invalidateLater(100, session)
   })
   
   current_color <- debounce(reactive(input$color_choice), 1000)
@@ -972,8 +979,8 @@ server <- function(input, output, session){
     print(current_color())
     color_table <- getGameData("color_table")
     player_row <- which(color_table$uname==input$uname)
-    color_table$pcolor[player_row] <- hsv(input$color_choice)
-    updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
+    color_table$pcolor[player_row] <- hsv((1-input$color_choice)*315/360)
+    # updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
     setGameData("color_table", color_table)
   })
 }
