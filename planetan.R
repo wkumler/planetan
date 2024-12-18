@@ -281,10 +281,15 @@ server <- function(input, output, session){
     
     if(game_status()()=="setup"){
       print("Returning setup div")
+      color_table <- getGameData("color_table")
+      player_color <- color_table[color_table$uname==input$uname,"pcolor"]
+      uname_span <- span(style=paste0("color: ", player_color, ";"), input$uname)
+      curp_color <- color_table[color_table$uname==current_player()(),"pcolor"]
+      curp_span <- span(style=paste0("color: ", curp_color, ";"), current_player()())
       if(input$uname==current_player()()){
         setup_div <- tagList(
           sidebarPanel(
-            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
+            h3("Welcome to Planetan, ", uname_span, "!"),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
@@ -298,8 +303,8 @@ server <- function(input, output, session){
       } else {
         setup_div <- tagList(
           sidebarPanel(
-            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-            h3(paste0("Waiting for ", current_player()(), " to choose setup spots.")),
+            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3("Waiting for ", curp_span, " to choose setup spots."),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
@@ -313,10 +318,16 @@ server <- function(input, output, session){
     }
     if(game_status()()=="gameplay"){
       print("Returning gameplay div")
+      color_table <- getGameData("color_table")
+      player_color <- color_table[color_table$uname==input$uname,"pcolor"]
+      uname_span <- span(style=paste0("color: ", player_color, ";"), input$uname)
+      curp_color <- color_table[color_table$uname==current_player()(),"pcolor"]
+      curp_span <- span(style=paste0("color: ", curp_color, ";"), current_player()())
+      
       if(input$uname==current_player()()){
         gameplay_div <- tagList(
           sidebarPanel(
-            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
+            h3("Welcome to Planetan, ", uname_span, "!"),
             if(dice_rolled()==FALSE){
               tagList(
                 h3("Roll the dice to begin your turn."),
@@ -351,8 +362,8 @@ server <- function(input, output, session){
       } else {
         gameplay_div <- tagList(
           sidebarPanel(
-            h3(paste0("Welcome to Planetan, ", input$uname, "!")),
-            h3(paste0("Waiting for ", current_player()(), " to finish their turn.")),
+            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3("Waiting for ", curp_span, " to finish their turn."),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
@@ -603,6 +614,19 @@ server <- function(input, output, session){
       return(NULL)
     }
     login_status("success")
+  })
+  current_color <- debounce(reactive(input$color_choice), 1000)
+  observeEvent(input$color_choice, {
+    req(current_color())
+    if(game_status()()=="players_joining"){
+      print("input$color_choice triggered!")
+      print(current_color())
+      color_table <- getGameData("color_table")
+      player_row <- which(color_table$uname==input$uname)
+      color_table$pcolor[player_row] <- hsv((1-input$color_choice)*315/360)
+      # updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
+      setGameData("color_table", color_table)
+    }
   })
   observeEvent(input$game_start, {
     print("input$game_start clicked")
@@ -970,18 +994,6 @@ server <- function(input, output, session){
                         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
     }
     invalidateLater(100, session)
-  })
-  
-  current_color <- debounce(reactive(input$color_choice), 1000)
-  observeEvent(input$color_choice, {
-    req(current_color())
-    print("input$color_choice triggered!")
-    print(current_color())
-    color_table <- getGameData("color_table")
-    player_row <- which(color_table$uname==input$uname)
-    color_table$pcolor[player_row] <- hsv((1-input$color_choice)*315/360)
-    # updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
-    setGameData("color_table", color_table)
   })
 }
 
