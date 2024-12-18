@@ -278,7 +278,8 @@ server <- function(input, output, session){
             tableOutput("resource_counts")
           ),
           mainPanel(
-            plotlyOutput("setup_game_world", height = "100vh")
+            plotlyOutput("setup_game_world", height = "100vh"),
+            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       } else {
@@ -290,7 +291,8 @@ server <- function(input, output, session){
             tableOutput("resource_counts")
           ),
           mainPanel(
-            plotlyOutput("setup_game_world", height = "100vh")
+            plotlyOutput("setup_game_world", height = "100vh"),
+            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       }
@@ -329,7 +331,8 @@ server <- function(input, output, session){
             }
           ),
           mainPanel(
-            plotlyOutput("game_world", height = "100vh")
+            plotlyOutput("game_world", height = "100vh"),
+            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       } else {
@@ -341,7 +344,8 @@ server <- function(input, output, session){
             tableOutput("resource_counts")
           ),
           mainPanel(
-            plotlyOutput("game_world", height = "100vh")
+            plotlyOutput("game_world", height = "100vh"),
+            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       }
@@ -867,6 +871,35 @@ server <- function(input, output, session){
   })
   observeEvent(input$end_turn, {
     
+  })
+  
+  i <- 0
+  theta <- seq(0, 6 * pi, length.out = 360) 
+  z <- 0.8 * sin(theta / 3)
+  r <- sqrt(1.5^2 - z^2)
+  x <- r * cos(theta)
+  y <- r * sin(theta)
+  cam_coords <- data.frame(x = x, y = y, z = z)
+  observe({
+    req(input$rotate_world)
+    if(input$rotate_world){
+      invalidateLater(10, session)
+      if(game_status()()=="setup"){
+        p <- plotlyProxy("setup_game_world", session)
+      } else {
+        p <- plotlyProxy("game_world", session)
+      }
+      i <<- (i + 1) %% 360
+      set_axis <- list(showspikes=FALSE, showgrid=FALSE, zeroline=FALSE, 
+                       visible=FALSE, range=c(-15, 15))
+      plotlyProxyInvoke(p, "relayout", 
+                        list(scene = list(camera = list(eye = list(
+                          x = cam_coords[i,"x"],
+                          y = cam_coords[i,"y"],
+                          z = cam_coords[i,"z"])
+                        ), bgcolor="black", aspectmode="cube",
+                        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
+    }
   })
 }
 
