@@ -516,7 +516,8 @@ server <- function(input, output, session){
     file.create(paste0("game_files/", input$game_id, "/game_log.txt"))
     gameLog(paste0("Host (", input$uname, ") started a new game"))
     setGameData("game_status", "players_joining")
-    setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd, pcolor="#FF0000"))
+    setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
+    setGameData("color_table", data.frame(uname=input$uname, pcolor="#FF0000"))
     
     # resource_layout <- getRandomGlobeLayout()
     # built_world <- worldbuilder(resource_layout)
@@ -570,8 +571,13 @@ server <- function(input, output, session){
     if(input$uname%in%init_player_list()()$uname){
       login_status("uname_already_taken")
     } else {
-      new_player_table <- rbind(init_player_list()(), c("uname"=input$uname, "pwd"=input$pwd, "pcolor"="#FF0000"))
+      new_player_table <- rbind(init_player_list()(), c("uname"=input$uname, "pwd"=input$pwd))
       setGameData("init_player_list", new_player_table)
+      
+      color_table <- getGameData("color_table")
+      color_table <- rbind(color_table, data.frame(uname=input$uname, pcolor="#FF0000"))
+      setGameData("color_table", color_table)
+      
       gameLog(paste0("Player ", input$uname, " joined"))
       login_status("join_waiting")
     }
@@ -604,6 +610,7 @@ server <- function(input, output, session){
     print("Starting game!")
     login_status("success")
     new_play_order <- init_player_list()()[sample(1:nrow(init_player_list()())),]
+    new_play_order <- merge(new_play_order, getGameData("color_table"))
     setGameData("init_player_list", new_play_order)
     setGameData("current_player", new_play_order$uname[1])
     setGameData("marker_data_all", marker_data_all, print_value = FALSE)
@@ -939,7 +946,6 @@ server <- function(input, output, session){
   observe({
     req(input$rotate_world)
     if(input$rotate_world){
-      invalidateLater(10, session)
       if(game_status()()=="setup"){
         p <- plotlyProxy("setup_game_world", session)
       } else {
@@ -956,6 +962,7 @@ server <- function(input, output, session){
                         ), bgcolor="black", aspectmode="cube",
                         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
     }
+    invalidateLater(10, session)
   })
   
   current_color <- debounce(reactive(input$color_choice), 1000)
@@ -963,11 +970,11 @@ server <- function(input, output, session){
     req(current_color())
     print("input$color_choice triggered!")
     print(current_color())
-    static_player_list <- getGameData("init_player_list")
-    player_row <- which(static_player_list$uname==input$uname)
-    static_player_list$pcolor[player_row] <- hsv(current_color())
+    color_table <- getGameData("color_table")
+    player_row <- which(color_table$uname==input$uname)
+    color_table$pcolor[player_row] <- hsv(input$color_choice)
     updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
-    setGameData("init_player_list", static_player_list)
+    setGameData("color_table", color_table)
   })
 }
 
