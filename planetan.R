@@ -492,7 +492,8 @@ server <- function(input, output, session){
       i=as.list(robber_init$faces$i),
       j=as.list(robber_init$faces$j),
       k=as.list(robber_init$faces$k),
-      facecolor=as.list(robber_init$faces$color)
+      facecolor=as.list(robber_init$faces$color),
+      hoverinfo="none"
     )
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
     
