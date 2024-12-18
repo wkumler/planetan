@@ -35,3 +35,32 @@ body {
   height: 150px;
   overflow-y: scroll;
 }
+
+.irs-min, .irs-max {
+  display: none;
+}
+.irs--shiny .irs-handle {
+  background-color: #F00;
+}
+.irs--shiny .irs-bar {
+  background: linear-gradient(to right, red, yellow, green);
+  background: #F00;
+  border-top: #000;
+  border-bottom: #000;
+}
+.irs--shiny .irs-single {
+  display: none;
+}
+.irs--shiny .irs-grid {
+  display: none;
+}
+
+.shiny-input-container {
+  text-align: center;
+  font-size: 1.75rem;
+}
+.shiny-slider-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+}

@@ -23,7 +23,8 @@ camera_eye <- function() {
 
 ui <- fillPage(
   uiOutput("visible_screen"),
-  includeCSS("styles.css")
+  includeCSS("styles.css"),
+  includeScript("colorbar.js")
 )
 
 server <- function(input, output, session){
@@ -217,6 +218,8 @@ server <- function(input, output, session){
           h3("Waiting for players"),
           h3(paste("Game ID:", input$game_id)),
           h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
+          h3("   "),
+          sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = 1),
           actionButton("game_start", "Start game!")
         )
       )
@@ -235,7 +238,9 @@ server <- function(input, output, session){
           wellPanel(
             h3("Waiting for host to start game"),
             h3(paste("Game ID:", input$game_id)),
-            h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", ")))
+            h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
+            h3("   "),
+            sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = 0.5), # Change back to 1 later
           )
         )
         return(join_waiting_div)
@@ -511,7 +516,7 @@ server <- function(input, output, session){
     file.create(paste0("game_files/", input$game_id, "/game_log.txt"))
     gameLog(paste0("Host (", input$uname, ") started a new game"))
     setGameData("game_status", "players_joining")
-    setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
+    setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd, pcolor="#FF0000"))
     
     # resource_layout <- getRandomGlobeLayout()
     # built_world <- worldbuilder(resource_layout)
@@ -565,7 +570,7 @@ server <- function(input, output, session){
     if(input$uname%in%init_player_list()()$uname){
       login_status("uname_already_taken")
     } else {
-      new_player_table <- rbind(init_player_list()(), c("uname"=input$uname, "pwd"=input$pwd))
+      new_player_table <- rbind(init_player_list()(), c("uname"=input$uname, "pwd"=input$pwd, "pcolor"="#FF0000"))
       setGameData("init_player_list", new_player_table)
       gameLog(paste0("Player ", input$uname, " joined"))
       login_status("join_waiting")
@@ -952,13 +957,25 @@ server <- function(input, output, session){
                         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
     }
   })
+  
+  current_color <- debounce(reactive(input$color_choice), 1000)
+  observeEvent(input$color_choice, {
+    req(current_color())
+    print("input$color_choice triggered!")
+    print(current_color())
+    static_player_list <- getGameData("init_player_list")
+    player_row <- which(static_player_list$uname==input$uname)
+    static_player_list$pcolor[player_row] <- hsv(current_color())
+    updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
+    setGameData("init_player_list", static_player_list)
+  })
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
