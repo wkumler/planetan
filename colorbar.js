@@ -1,3 +1,18 @@
+/*
+library(shiny)
+
+ui <- fluidPage(
+  includeCSS("styles.css"),
+  includeScript("colorbar.js"),
+  sliderInput("slider", "Pick a color!", min = 0, max = 1, value = 1),
+)
+
+server <- function(input, output, session) {}
+
+shinyApp(ui, server)
+*/
+
+
 $(document).on('shiny:inputchanged', function(event) {
   if (event.name === 'color_choice') {
     var value = event.value;
