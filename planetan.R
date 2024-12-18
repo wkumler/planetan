@@ -42,7 +42,8 @@ server <- function(input, output, session){
   gameLog <- function(log_item){
     print(paste("LOG ITEM:", log_item))
     outfile <- paste0("game_files/", input$game_id, "/game_log.txt")
-    cat(paste0(log_item, "\n"), file = outfile, append = TRUE)
+    all_lines <- readLines(outfile)
+    cat(paste(c(log_item, all_lines, ""), collapse = "\n"), file = outfile)
     return(NULL)
   }
   
@@ -358,13 +359,9 @@ server <- function(input, output, session){
       }
       return(gameplay_div)
     }
-    div(
-      class = "center-both",
-      wellPanel(
-        h3("Gameboard placeholder!")
-      )
-    )
-  })
+    div(class = "center-both", wellPanel(h3("Gameboard placeholder!")))
+  }) # end output$visible_screen
+  
   output$build_info <- renderTable({
     print("Rendering build_info as a table!")
     build_list()()
@@ -650,8 +647,9 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
+    robber_init <- getGameData("robber_data")
     ply <- ply %>%
-      add_trace(type="mesh3d", data = getGameData("robber_data"),
+      add_trace(type="mesh3d", data = robber_init,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
                 facecolor=rgb(t(col2rgb(robber_init$faces$color)),
@@ -720,6 +718,7 @@ server <- function(input, output, session){
       gameLog("Setup complete! Starting gameplay.")
       
       # Allocate initial resources to players
+      resource_layout <- getGameData("resource_layout")
       settle_resources <- build_list()()[build_list()()$build=="settlement",] %>%
         .[duplicated(.$owner),] %>%
         merge(nearby_structures$verts)
@@ -780,8 +779,9 @@ server <- function(input, output, session){
       showlegend=FALSE) %>%
       config(displayModeBar = FALSE)
     
+    robber_init <- getGameData("robber_data")
     ply <- ply %>%
-      add_trace(type="mesh3d", data = getGameData("robber_data"),
+      add_trace(type="mesh3d", data = robber_init,
                 x=~vertices$x, y=~vertices$y, z=~vertices$z,
                 i=~faces$i, j=~faces$j, k=~faces$k,
                 facecolor=rgb(t(col2rgb(robber_init$faces$color)),
@@ -829,6 +829,7 @@ server <- function(input, output, session){
       print("Robber moved successfully")
     }
     
+    resource_layout <- getGameData("resource_layout")
     settle_resources <- build_list()()[build_list()()$build%in%c("settlement", "city"),] %>%
       merge(nearby_structures$verts)
     unlist_resources <- data.frame(
@@ -911,16 +912,16 @@ server <- function(input, output, session){
     
   })
   
-  log_reader <- reactiveFileReader(
+  log_reader <- reactive(reactiveFileReader(
     intervalMillis = 1000,
     session = session,
     filePath = paste0("game_files/", input$game_id, "/game_log.txt"),
     readFunc = readLines
-  )
+  ))
   output$game_log <- renderText({
     req(input$game_id)
     req(game_status()())
-    log_reader()
+    paste(log_reader()(), collapse = "\n")
   })
   
   i <- 0
