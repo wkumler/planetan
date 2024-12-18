@@ -12,6 +12,7 @@ camera_eye <- function() {
 }
 
 
+
 # options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 
 ## To-do:
@@ -38,6 +39,12 @@ server <- function(input, output, session){
     # if(print_value)print(paste("Value:", value))
     return(NULL)
   }
+  gameLog <- function(log_item){
+    print(paste("LOG ITEM:", log_item))
+    outfile <- paste0("game_files/", input$game_id, "/game_log.txt")
+    cat(paste0(log_item, "\n"), file = outfile, append = TRUE)
+    return(NULL)
+  }
   
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
@@ -52,8 +59,8 @@ server <- function(input, output, session){
   robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
   my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
   robber_active <- reactiveVal(FALSE)
-
   dice_rolled <- reactiveVal(FALSE)
+  
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
   init_player_list <- reactiveVal(function(){})
@@ -274,7 +281,7 @@ server <- function(input, output, session){
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
-            tableOutput("build_info"),
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
           mainPanel(
@@ -287,7 +294,7 @@ server <- function(input, output, session){
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3(paste0("Waiting for ", current_player()(), " to choose setup spots.")),
-            tableOutput("build_info"),
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
           mainPanel(
@@ -308,7 +315,7 @@ server <- function(input, output, session){
               tagList(
                 h3("Roll the dice to begin your turn."),
                 actionButton("roll_dice", "Roll the dice"),
-                tableOutput("build_info"),
+                div(class = "scrollable-log", verbatimTextOutput("game_log")),
                 tableOutput("resource_counts")
               )
             } else {
@@ -316,7 +323,7 @@ server <- function(input, output, session){
                 tagList(
                   h3("Robber active! Choose where it should go."),
                   actionButton("move_robber", "Move the robber here", disabled = TRUE),
-                  tableOutput("build_info"),
+                  div(class = "scrollable-log", verbatimTextOutput("game_log")),
                   tableOutput("resource_counts")
                 )
               } else {
@@ -324,7 +331,7 @@ server <- function(input, output, session){
                   h3("Build, offer a trade, or end your turn."),
                   actionButton("offer_trade", "Offer a trade"),
                   actionButton("end_turn", "End turn"),
-                  tableOutput("build_info"),
+                  div(class = "scrollable-log", verbatimTextOutput("game_log")),
                   tableOutput("resource_counts")
                 )
               }
@@ -340,7 +347,7 @@ server <- function(input, output, session){
           sidebarPanel(
             h3(paste0("Welcome to Planetan, ", input$uname, "!")),
             h3(paste0("Waiting for ", current_player()(), " to finish their turn.")),
-            tableOutput("build_info"),
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
           mainPanel(
@@ -480,9 +487,6 @@ server <- function(input, output, session){
       print("No resource update needed")
       return(NULL)
     }
-    
-    
-    
     my_player_resources(player_resources()())
   })
   
@@ -507,6 +511,8 @@ server <- function(input, output, session){
     existing_game_ids <- readRDS("game_files/existing_game_ids.rds")
     saveRDS(c(existing_game_ids, input$game_id), "game_files/existing_game_ids.rds")
     dir.create(paste0("game_files/", input$game_id))
+    file.create(paste0("game_files/", input$game_id, "/game_log.txt"))
+    gameLog(paste0("Host (", input$uname, ") started a new game"))
     setGameData("game_status", "players_joining")
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     
@@ -564,6 +570,7 @@ server <- function(input, output, session){
     } else {
       new_player_table <- rbind(init_player_list()(), c("uname"=input$uname, "pwd"=input$pwd))
       setGameData("init_player_list", new_player_table)
+      gameLog(paste0("Player ", input$uname, " joined"))
       login_status("join_waiting")
     }
   })
@@ -612,6 +619,7 @@ server <- function(input, output, session){
       wood=0, brick=0, wool=0, wheat=0, ore=0
     ))
     setGameData("game_status", "setup")
+    gameLog("Game started")
   })
   
   output$setup_game_world <- renderPlotly({
@@ -686,6 +694,7 @@ server <- function(input, output, session){
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
+    gameLog(paste0(input$uname, " built a ", new_build$build))
     
     if(new_build$build=="road"){
       print("Updating marker_data()()")
@@ -708,6 +717,7 @@ server <- function(input, output, session){
     if(next_player=="begin"){
       setGameData("game_status", "gameplay")
       setGameData("current_player", setup_stack[1])
+      gameLog("Setup complete! Starting gameplay.")
       
       # Allocate initial resources to players
       settle_resources <- build_list()()[build_list()()$build=="settlement",] %>%
@@ -800,7 +810,7 @@ server <- function(input, output, session){
   observeEvent(input$roll_dice, {
     number_rolled <- sum(sample(1:6, 1), sample(1:6, 1))
     number_rolled <- 7
-    print(paste("Number rolled:", number_rolled))
+    gameLog(paste(input$uname, "rolled a", number_rolled))
     
     if(number_rolled==7){
       print("Activating robber")
@@ -816,8 +826,34 @@ server <- function(input, output, session){
       )
       plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
       robber_active(TRUE)
+      print("Robber moved successfully")
     }
     
+    settle_resources <- build_list()()[build_list()()$build%in%c("settlement", "city"),] %>%
+      merge(nearby_structures$verts)
+    unlist_resources <- data.frame(
+      vert_id=rep(settle_resources$id, each=3),
+      owner=rep(settle_resources$owner, each=3),
+      build=rep(settle_resources$build, each=3),
+      id=unlist(settle_resources$nearest_faces)
+    ) %>% 
+      merge(resource_layout[c("id", "hex_resources", "pip")]) %>%
+      .[.$hex_resources!="snow",] %>%
+      .[.$pip==number_rolled,]
+    static_player_resources <- getGameData("player_resources")
+    # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
+    for(i in seq_len(nrow(unlist_resources))){
+      player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
+      resource_col <- as.character(unlist_resources$hex_resources[i])
+      if(unlist_resources$build[i]=="settlement"){
+        static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+1
+      } else if(unlist_resources$build[i]=="city"){
+        static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+2
+      } else {
+        stop(paste("Unrecognized build type", unlist_resources$build[i]))
+      }
+    }
+    setGameData("player_resources", static_player_resources)
     dice_rolled(TRUE)
   })
   observeEvent(input$move_robber, {
@@ -826,6 +862,7 @@ server <- function(input, output, session){
     robber_init <- piece_maker(piece_type = "robber", robber_row_data)
     
     setGameData("robber_data", robber_init)
+    gameLog(paste(input$uname, "moved the robber"))
     robber_active(FALSE)
   })
   observeEvent(input$build_here, {
@@ -838,6 +875,7 @@ server <- function(input, output, session){
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
+    gameLog(paste0(input$uname, " built a ", new_build$build))
     
     if(new_build$build=="road"){
       print("Updating marker_data()()")
@@ -871,6 +909,18 @@ server <- function(input, output, session){
   })
   observeEvent(input$end_turn, {
     
+  })
+  
+  log_reader <- reactiveFileReader(
+    intervalMillis = 1000,
+    session = session,
+    filePath = paste0("game_files/", input$game_id, "/game_log.txt"),
+    readFunc = readLines
+  )
+  output$game_log <- renderText({
+    req(input$game_id)
+    req(game_status()())
+    log_reader()
   })
   
   i <- 0
