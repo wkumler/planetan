@@ -109,6 +109,7 @@ server <- function(input, output, session){
   robber_data <- reactiveVal(function(){})
   player_resources <- reactiveVal(function(){})
   dice_rolled <- reactiveVal(function(){})
+  log_reader <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -323,7 +324,7 @@ server <- function(input, output, session){
         filePath = paste0("game_files/", input$game_id, "/dice_rolled.rds"), 
         readFunc = readRDS
       ))
-      log_reader <- reactive(reactiveFileReader(
+      log_reader(reactiveFileReader(
         intervalMillis = 1000,
         session = session,
         filePath = paste0("game_files/", input$game_id, "/game_log.txt"),
