@@ -11,6 +11,7 @@ camera_eye <- function() {
   c(1.2 * cos(theta), 1.2 * sin(theta))
 }
 
+
 # Deployment checklist
 # Comment out all browseURL calls
 # Comment out the game_files unlink code
@@ -48,6 +49,41 @@ server <- function(input, output, session){
     cat(paste(c(log_item, all_lines, ""), collapse = "\n"), file = outfile)
     return(NULL)
   }
+  getBuildSpots <- function(){
+    print("Getting buildable spots!")
+    build_list <- getGameData("build_list")
+    player_resources <- getGameData("player_resources")
+    
+    player_res_row <- player_resources[player_resources$uname==input$uname,]
+    build_spots <- integer()
+    if(player_res_row$wood>=1 & player_res_row$brick>=1){
+      my_roads <- build_list[build_list$build=="road" & build_list$owner==input$uname,]
+      nearby_roads <- unique(unlist(merge(my_roads, nearby_structures$edges)$nearest_edges))
+      road_spots <- setdiff(nearby_roads, build_list$id)
+      build_spots <- c(build_spots, road_spots)
+    }
+    if(all(player_res_row[c("wood", "brick", "wool", "wheat")]>=1)){
+      # settlements that are near our roads
+      # that are not already built
+      # that are not too close to other builds
+      
+      my_roads <- build_list[build_list$build=="road" & build_list$owner==input$uname,]
+      potsets <- unique(unlist(merge(my_roads, nearby_structures$edges)$nearest_verts))
+      
+      all_settles <- build_list[build_list$build=="settlement",]
+      too_close_to_settle <- unique(unlist(merge(all_settles, nearby_structures$verts)$nearest_verts))
+      
+      settle_spots <- setdiff(potsets, c(too_close_to_settle, build_list$id))
+      build_spots <- c(build_spots, settle_spots)
+    }
+    if(player_res_row$ore>=3 & player_res_row$wheat>=2){
+      my_settles <- build_list[build_list$build=="settlement" & build_list$owner==input$uname,]
+      all_cities <- build_list[build_list$build=="city",]
+      city_spots <- setdiff(my_settles$id, all_cities$id)
+      build_spots <- c(build_spots, city_spots)
+    }
+    marker_data_all[marker_data_all$id%in%build_spots,]
+  }
   
   # These vars are simple reactives because they're specific to this session
   login_status <- reactiveVal("startup")
@@ -62,7 +98,6 @@ server <- function(input, output, session){
   robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
   my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
   robber_active <- reactiveVal(FALSE)
-  dice_rolled <- reactiveVal(FALSE)
   
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
@@ -73,6 +108,7 @@ server <- function(input, output, session){
   marker_data <- reactiveVal(function(){})
   robber_data <- reactiveVal(function(){})
   player_resources <- reactiveVal(function(){})
+  dice_rolled <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -261,22 +297,28 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
       readFunc = readRDS
     ))
-    marker_data(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
-      readFunc = readRDS
-    ))
     robber_data(reactiveFileReader(
       intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/robber_data.rds"), 
       readFunc = readRDS
     ))
+    marker_data(reactiveFileReader(
+      intervalMillis = 1000, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
+      readFunc = readRDS
+    ))
     player_resources(reactiveFileReader(
       intervalMillis = 1000, 
       session = session, 
       filePath = paste0("game_files/", input$game_id, "/player_resources.rds"), 
+      readFunc = readRDS
+    ))
+    dice_rolled(reactiveFileReader(
+      intervalMillis = 1000, 
+      session = session, 
+      filePath = paste0("game_files/", input$game_id, "/dice_rolled.rds"), 
       readFunc = readRDS
     ))
     
@@ -329,7 +371,7 @@ server <- function(input, output, session){
         gameplay_div <- tagList(
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
-            if(dice_rolled()==FALSE){
+            if(dice_rolled()()==FALSE){ # Has to be reactive to trigger rerender
               tagList(
                 h3("Roll the dice to begin your turn."),
                 actionButton("roll_dice", "Roll the dice"),
@@ -347,6 +389,7 @@ server <- function(input, output, session){
               } else {
                 tagList(
                   h3("Build, offer a trade, or end your turn."),
+                  actionButton("build_here", "Build here", disabled = TRUE),
                   actionButton("offer_trade", "Offer a trade"),
                   actionButton("end_turn", "End turn"),
                   div(class = "scrollable-log", verbatimTextOutput("game_log")),
@@ -379,10 +422,6 @@ server <- function(input, output, session){
     div(class = "center-both", wellPanel(h3("Gameboard placeholder!")))
   }) # end output$visible_screen
   
-  output$build_info <- renderTable({
-    print("Rendering build_info as a table!")
-    build_list()()
-  })
   output$resource_counts <- renderTable({
     print("Rendering player_resources as a table!")
     player_resources()()
@@ -430,8 +469,39 @@ server <- function(input, output, session){
     print("Updating my_build_list to match disk")
     my_build_list(build_list()())
   })
+  observeEvent(robber_data()(), {
+    print(paste("robber_data()() triggered for", input$uname))
+    if(identical(my_robber_data(), robber_data()())){
+      print("Robber is in correct spot already")
+      return(NULL)
+    }
+    
+    print("Removing existing robber (and any clickables)")
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
+    
+    print("Adding robber mesh to game_world")
+    robber_init <- getGameData("robber_data")
+    newtrace <- list(
+      type="mesh3d",
+      x=as.list(robber_init$vertices$x),
+      y=as.list(robber_init$vertices$y),
+      z=as.list(robber_init$vertices$z),
+      i=as.list(robber_init$faces$i),
+      j=as.list(robber_init$faces$j),
+      k=as.list(robber_init$faces$k),
+      facecolor=as.list(robber_init$faces$color),
+      hoverinfo="none"
+    )
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
+    
+    my_robber_data(robber_data()())
+  })
   observeEvent(marker_data()(), {
     print(paste("marker_data()() triggered for", input$uname))
+    print(my_marker_data())
+    print(marker_data()())
     new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
     if(nrow(new_marker_data)==0){
       print("No markers to add")
@@ -470,35 +540,6 @@ server <- function(input, output, session){
     }
     print("Updating my_marker_data to match disk")
     my_marker_data(marker_data()())
-  })
-  observeEvent(robber_data()(), {
-    print(paste("robber_data()() triggered for", input$uname))
-    if(identical(my_robber_data(), robber_data()())){
-      print("Robber is in correct spot already")
-      return(NULL)
-    }
-    
-    print("Removing existing robber (and any clickables)")
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(1))
-    
-    print("Adding robber mesh to game_world")
-    robber_init <- getGameData("robber_data")
-    newtrace <- list(
-      type="mesh3d",
-      x=as.list(robber_init$vertices$x),
-      y=as.list(robber_init$vertices$y),
-      z=as.list(robber_init$vertices$z),
-      i=as.list(robber_init$faces$i),
-      j=as.list(robber_init$faces$j),
-      k=as.list(robber_init$faces$k),
-      facecolor=as.list(robber_init$faces$color),
-      hoverinfo="none"
-    )
-    plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
-    
-    my_robber_data(robber_data()())
   })
   observeEvent(player_resources()(), {
     print(paste("player_resources()() triggered for", input$uname))
@@ -539,7 +580,7 @@ server <- function(input, output, session){
     # resource_layout <- getRandomGlobeLayout()
     # built_world <- worldbuilder(resource_layout)
     resource_layout <- readRDS("debug_resource_layout.rds")
-    built_world <- readRDS("debug_built_world.rds")
+    built_world <- readRDS("debug_globe_plates.rds")
     setGameData("resource_layout", resource_layout, print_value = FALSE)
     setGameData("globe_plates", built_world, print_value = FALSE)
     
@@ -657,6 +698,7 @@ server <- function(input, output, session){
       uname=init_player_list()()$uname, vp=2, knights=0,
       wood=0, brick=0, wool=0, wheat=0, ore=0
     ))
+    setGameData("dice_rolled", FALSE)
     setGameData("game_status", "setup")
     gameLog("Game started")
   })
@@ -788,7 +830,7 @@ server <- function(input, output, session){
   })
   
   output$game_world <- renderPlotly({
-    print("Re-rendering setup_game_world")
+    print("Re-rendering game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
     
     static_build_list <- getGameData("build_list")
@@ -857,7 +899,6 @@ server <- function(input, output, session){
   })
   observeEvent(input$roll_dice, {
     number_rolled <- sum(sample(1:6, 1), sample(1:6, 1))
-    number_rolled <- 7
     gameLog(paste(input$uname, "rolled a", number_rolled))
     
     if(number_rolled==7){
@@ -874,8 +915,15 @@ server <- function(input, output, session){
       )
       plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
       robber_active(TRUE)
-      print("Robber moved successfully")
+      setGameData("dice_rolled", TRUE)
+      return(NULL) # trigger later marker_data from "move robber here" input instead
     }
+    
+    print("Allocating resources based on roll")
+    robber_basepoint <- cbind(id=0, getGameData("robber_data")$vertices[1,])
+    face_spots <- marker_data_all[marker_data_all$lab=="face",c("id", "x", "y", "z")]
+    rob_dists <- sweep(data.matrix(face_spots), 2, data.matrix(robber_basepoint), `-`)
+    robber_face_id <- names(which.min(rowSums(abs(rob_dists[,c("x", "y", "z")]))))
     
     resource_layout <- getGameData("resource_layout")
     settle_resources <- build_list()()[build_list()()$build%in%c("settlement", "city"),] %>%
@@ -888,7 +936,8 @@ server <- function(input, output, session){
     ) %>% 
       merge(resource_layout[c("id", "hex_resources", "pip")]) %>%
       .[.$hex_resources!="snow",] %>%
-      .[.$pip==number_rolled,]
+      .[.$pip==number_rolled,] %>%
+      .[.$id!=robber_face_id]
     static_player_resources <- getGameData("player_resources")
     # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
     for(i in seq_len(nrow(unlist_resources))){
@@ -903,7 +952,16 @@ server <- function(input, output, session){
       }
     }
     setGameData("player_resources", static_player_resources)
-    dice_rolled(TRUE)
+    
+    # We want to offer as build spots
+    # 1) settlements that aren't too close to other settlements
+    # 2) roads that are close to our own roads (but not already built)
+    # 3) cities where our settlements have already been built
+    # Only if the resources for this are available!
+    print("Updating clickables after roll")
+    setGameData("marker_data", getBuildSpots())
+    
+    setGameData("dice_rolled", TRUE)
   })
   observeEvent(input$move_robber, {
     face_markers <- marker_data_all[marker_data_all$lab=="face",]
@@ -912,52 +970,58 @@ server <- function(input, output, session){
     
     setGameData("robber_data", robber_init)
     gameLog(paste(input$uname, "moved the robber"))
+    
+    # Add the correct markers back via marker_data()() update here
+    # since they didn't get re-added before
+    setGameData("marker_data", getBuildSpots())
+    
     robber_active(FALSE)
   })
   observeEvent(input$build_here, {
-    stop("input$build_here not yet supported, needs updating for gameplay instead of setup")
     print("input$build_here_setup clicked")
+    marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
+    build_spot <- marker_data_unmoved[ed()$key,]
+    
+    static_player_resources <- getGameData("player_resources")
+    prr <- which(static_player_resources$uname==input$uname)
+    if(build_spot$lab=="edge"){
+      build_type <- "road"
+      static_player_resources$wood[prr] <- static_player_resources$wood[prr]-1
+      static_player_resources$brick[prr] <- static_player_resources$brick[prr]-1
+    }
+    if(build_spot$lab=="vertex"){
+      if(build_spot$id%in%build_list()()$id){
+        build_type <- "city"
+        static_player_resources$ore[prr] <- static_player_resources$ore[prr]-3
+        static_player_resources$wheat[prr] <- static_player_resources$wheat[prr]-2
+      } else {
+        build_type <- "settlement"
+        static_player_resources$wood[prr] <- static_player_resources$wood[prr]-1
+        static_player_resources$brick[prr] <- static_player_resources$brick[prr]-1
+        static_player_resources$wheat[prr] <- static_player_resources$wheat[prr]-1
+        static_player_resources$wool[prr] <- static_player_resources$wool[prr]-1
+      }
+    }
+    print("Updating player_resources()()")
+    setGameData("player_resources", static_player_resources)
     
     print("Updating build_list()()")
-    marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
-    build_spot <- marker_data_unmoved[setup_ed()$key,]
-    build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
-    gameLog(paste0(input$uname, " built a ", new_build$build))
+    gameLog(paste(input$uname, "built a", build_type))
     
-    if(new_build$build=="road"){
-      print("Updating marker_data()()")
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="vertex",]
-      built_verts <- init_settlement_spots[build_list()()$id,]
-      too_close_verts <- unique(unlist(merge(built_verts, nearby_structures$verts)$nearest_verts))
-      marker_spots <- init_settlement_spots[!init_settlement_spots$id%in%too_close_verts,]
-      marker_spots <- marker_spots[!marker_spots$id%in%built_verts$id,]
-    } else {
-      init_settlement_spots <- marker_data_all[marker_data_all$lab=="edge",]
-      nearby_edges <- unlist(nearby_structures$verts$nearest_edges[new_build$id])
-      marker_spots <- init_settlement_spots[init_settlement_spots$id%in%nearby_edges,]
-    }
     print("Updating marker_data()()")
-    setGameData("marker_data", marker_spots)
-    
-    setup_stack <- init_player_list()()$uname
-    setup_stack <- c(setup_stack, rev(setup_stack), "begin")
-    next_player <- setup_stack[floor(nrow(getGameData("build_list"))/2)+1]
-    if(next_player=="begin"){
-      setGameData("game_status", "gameplay")
-      setGameData("current_player", setup_stack[1])
-      return(NULL)
-    } 
-    if(new_build$build=="road"){
-      setGameData("current_player", next_player)
-    }
+    setGameData("marker_data", getBuildSpots())
   })
   observeEvent(input$offer_trade, {
     
   })
   observeEvent(input$end_turn, {
-    
+    cur_player_idx <- which(init_player_list()()$uname==input$uname)
+    next_player_idx <- cur_player_idx%%nrow(init_player_list()())+1
+    next_player <- init_player_list()()$uname[next_player_idx]
+    setGameData("current_player", next_player)
+    setGameData("dice_rolled", FALSE)
   })
   
   log_reader <- reactive(reactiveFileReader(
@@ -1000,10 +1064,10 @@ server <- function(input, output, session){
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
-# browseURL("http://127.0.0.1:5013/")
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
+browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
