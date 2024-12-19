@@ -704,7 +704,7 @@ server <- function(input, output, session){
     )
     setGameData("player_resources", data.frame(
       uname=init_player_list()()$uname, vp=2, knights=0,
-      wood=0, brick=0, wool=0, wheat=0, ore=0
+      wood=5, brick=5, wool=5, wheat=5, ore=6
     ))
     setGameData("dice_rolled", FALSE)
     setGameData("game_status", "setup")
@@ -1009,7 +1009,7 @@ server <- function(input, output, session){
         static_player_resources$wheat[prr] <- static_player_resources$wheat[prr]-1
         static_player_resources$wool[prr] <- static_player_resources$wool[prr]-1
       }
-      static_player_resources$vp[prr] <- static_player_resources$vp[prr]-1
+      static_player_resources$vp[prr] <- static_player_resources$vp[prr]+1
     }
     print("Updating player_resources()()")
     setGameData("player_resources", static_player_resources)
