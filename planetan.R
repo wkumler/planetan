@@ -256,7 +256,7 @@ server <- function(input, output, session){
           h3(paste("Game ID:", input$game_id)),
           h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
           h3("   "),
-          sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = 1),
+          sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = runif(1)),
           actionButton("game_start", "Start game!")
         )
       )
@@ -277,51 +277,60 @@ server <- function(input, output, session){
             h3(paste("Game ID:", input$game_id)),
             h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
             h3("   "),
-            sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = 0.5), # Change back to 1 later
+            sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = runif(1)), # Change back to 1 later
           )
         )
         return(join_waiting_div)
       }
     }
     
-    # Load current_player()() here to avoid loading it separately for host and join
-    current_player(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
-      readFunc = readRDS
-    ))
-    build_list(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
-      readFunc = readRDS
-    ))
-    robber_data(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/robber_data.rds"), 
-      readFunc = readRDS
-    ))
-    marker_data(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
-      readFunc = readRDS
-    ))
-    player_resources(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/player_resources.rds"), 
-      readFunc = readRDS
-    ))
-    dice_rolled(reactiveFileReader(
-      intervalMillis = 1000, 
-      session = session, 
-      filePath = paste0("game_files/", input$game_id, "/dice_rolled.rds"), 
-      readFunc = readRDS
-    ))
-    
+    load_reactives <- TRUE
+    if(load_reactives){
+      # Load current_player()() here to avoid loading it separately for host and join
+      current_player(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/current_player.rds"), 
+        readFunc = readRDS
+      ))
+      build_list(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/build_list.rds"), 
+        readFunc = readRDS
+      ))
+      robber_data(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/robber_data.rds"), 
+        readFunc = readRDS
+      ))
+      marker_data(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/marker_data.rds"), 
+        readFunc = readRDS
+      ))
+      player_resources(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/player_resources.rds"), 
+        readFunc = readRDS
+      ))
+      dice_rolled(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/dice_rolled.rds"), 
+        readFunc = readRDS
+      ))
+      log_reader <- reactive(reactiveFileReader(
+        intervalMillis = 1000,
+        session = session,
+        filePath = paste0("game_files/", input$game_id, "/game_log.txt"),
+        readFunc = readLines
+      ))
+    }
+
     if(game_status()()=="setup"){
       print("Returning setup div")
       color_table <- getGameData("color_table")
@@ -421,7 +430,6 @@ server <- function(input, output, session){
     }
     div(class = "center-both", wellPanel(h3("Gameboard placeholder!")))
   }) # end output$visible_screen
-  
   output$resource_counts <- renderTable({
     print("Rendering player_resources as a table!")
     player_resources()()
@@ -502,19 +510,22 @@ server <- function(input, output, session){
     print(paste("marker_data()() triggered for", input$uname))
     print(my_marker_data())
     print(marker_data()())
-    new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
-    if(nrow(new_marker_data)==0){
-      print("No markers to add")
-      return(NULL)
-    }
     
-    print("Wiping existing clickables")
+    
     if(getGameData("game_status")=="setup"){
+      new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
       plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
       plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
     } else {
+      new_marker_data <- marker_data()()
       plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
       plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    }
+    
+    if(nrow(new_marker_data)==0){
+      print("No markers to add")
+      my_marker_data(marker_data()())
+      return(NULL)
     }
     
     if(input$uname==getGameData("current_player")){
@@ -658,7 +669,7 @@ server <- function(input, output, session){
     }
     login_status("success")
   })
-  current_color <- debounce(reactive(input$color_choice), 1000)
+  current_color <- debounce(reactive(input$color_choice), 100)
   observeEvent(input$color_choice, {
     req(current_color())
     if(game_status()()=="players_joining"){
@@ -1001,6 +1012,7 @@ server <- function(input, output, session){
         static_player_resources$wheat[prr] <- static_player_resources$wheat[prr]-1
         static_player_resources$wool[prr] <- static_player_resources$wool[prr]-1
       }
+      static_player_resources$vp[prr] <- static_player_resources$vp[prr]-1
     }
     print("Updating player_resources()()")
     setGameData("player_resources", static_player_resources)
@@ -1024,23 +1036,16 @@ server <- function(input, output, session){
     setGameData("dice_rolled", FALSE)
   })
   
-  log_reader <- reactive(reactiveFileReader(
-    intervalMillis = 1000,
-    session = session,
-    filePath = paste0("game_files/", input$game_id, "/game_log.txt"),
-    readFunc = readLines
-  ))
   output$game_log <- renderText({
     req(input$game_id)
     req(game_status()())
     paste(log_reader()(), collapse = "\n")
   })
-  
-  i <- 0
-  theta <- seq(0, 6 * pi, length.out = 360) 
-  r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
-  cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
   observe({
+    i <- 0
+    theta <- seq(0, 6 * pi, length.out = 360) 
+    r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
+    cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
     req(input$rotate_world)
     if(input$rotate_world){
       if(game_status()()=="setup"){
@@ -1060,7 +1065,7 @@ server <- function(input, output, session){
                         xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
     }
     invalidateLater(100, session)
-  })
+  }) # move camera
 }
 
 
