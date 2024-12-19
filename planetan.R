@@ -670,16 +670,12 @@ server <- function(input, output, session){
     }
     login_status("success")
   })
-  current_color <- debounce(reactive(input$color_choice), 100)
   observeEvent(input$color_choice, {
-    req(current_color())
     if(game_status()()=="players_joining"){
       print("input$color_choice triggered!")
-      print(current_color())
       color_table <- getGameData("color_table")
       player_row <- which(color_table$uname==input$uname)
       color_table$pcolor[player_row] <- hsv((1-input$color_choice)*315/360)
-      # updateSliderInput(session, "color_choice", "Choose a color!", value = current_color())
       setGameData("color_table", color_table)
     }
   })
