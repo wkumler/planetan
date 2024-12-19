@@ -31,7 +31,7 @@ ui <- fillPage(
 
 server <- function(input, output, session){
   getGameData <- function(rds_obj_name, print_value=TRUE){
-    print(paste("Reading", rds_obj_name, "in from file"))
+    # print(paste("Reading", rds_obj_name, "in from file"))
     value <- readRDS(paste0("game_files/", input$game_id, "/", rds_obj_name, ".rds"))
     # if(print_value)print(paste("Value:", value))
     return(value)
@@ -483,6 +483,8 @@ server <- function(input, output, session){
     if(identical(my_robber_data(), robber_data()())){
       print("Robber is in correct spot already")
       return(NULL)
+      my_marker_data(FALSE)
+      setGameData("marker_data", getBuildSpots())
     }
     
     print("Removing existing robber (and any clickables)")
@@ -506,45 +508,47 @@ server <- function(input, output, session){
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
     
     my_robber_data(robber_data()())
+    
+    # Add the correct markers back via marker_data()() update here
+    # since they didn't get re-added before
+    my_marker_data(FALSE)
+    setGameData("marker_data", getBuildSpots())
   })
   observeEvent(marker_data()(), {
     print(paste("marker_data()() triggered for", input$uname))
     print(my_marker_data())
     print(marker_data()())
     
+    # if(identical(my_marker_data(), marker_data()())){
+    #   print("No markers to add!")
+    #   return(NULL)
+    # }
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
     
-    if(getGameData("game_status")=="setup"){
-      new_marker_data <- anti_merge(marker_data()(), my_marker_data(), by=c("id", "x", "y", "z", "lab"))
-      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-      plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    } else {
-      new_marker_data <- marker_data()()
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
-    }
-    
-    if(nrow(new_marker_data)==0){
+    if(nrow(marker_data()())==0){
       print("No markers to add")
       my_marker_data(marker_data()())
       return(NULL)
     }
     
+    print(getGameData("dice_rolled"))
+    print(game_status()())
     if(input$uname==getGameData("current_player")){
-      print(paste("Adding clickables to map for", input$uname))
-      newtrace <- list(
-        x = as.list(new_marker_data$x),
-        y = as.list(new_marker_data$y),
-        z = as.list(new_marker_data$z),
-        key = as.list(new_marker_data$id),
-        type = "scatter3d",
-        mode = "markers",
-        marker = list(color="white", opacity=0.1, size=50)
-      )
-      if(getGameData("game_status")=="setup"){
-        print("Adding markers to setup_game_world")
+      if(getGameData("dice_rolled") | game_status()()=="setup"){
+        print(paste("Adding clickables to map for", input$uname))
+        newtrace <- list(
+          x = as.list(marker_data()()$x),
+          y = as.list(marker_data()()$y),
+          z = as.list(marker_data()()$z),
+          key = as.list(marker_data()()$id),
+          type = "scatter3d",
+          mode = "markers",
+          marker = list(color="white", opacity=0.1, size=50)
+        )
         plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
-      } else {
-        print("Adding markers to game_world")
         plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
       }
     } else {
@@ -696,9 +700,7 @@ server <- function(input, output, session){
     setGameData("marker_data_unmoved", marker_data_unmoved, print_value = FALSE)
     setGameData("nearby_structures", nearby_structures, print_value = FALSE)
     setGameData("build_list", data.frame(id=numeric(), owner=character(), build=character()))
-    setGameData("marker_data", data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
-                                          compass_angle=numeric(), elevation_angle=numeric(),
-                                          lab=character()))
+    setGameData("marker_data", marker_data_all[marker_data_all$lab=="vertex",])
     setGameData("robber_data", piece_maker(
       piece_type = "robber", data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0))
     )
@@ -782,6 +784,8 @@ server <- function(input, output, session){
     print(setup_ed())
     build_spot <- marker_data_unmoved[setup_ed()$key,]
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
+    print(build_type)
+    print(build_spot)
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
     gameLog(paste0(input$uname, " built a ", new_build$build))
@@ -948,6 +952,8 @@ server <- function(input, output, session){
       .[.$id!=robber_face_id]
     static_player_resources <- getGameData("player_resources")
     # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
+    print(static_player_resources)
+    print(unlist_resources)
     for(i in seq_len(nrow(unlist_resources))){
       player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
       resource_col <- as.character(unlist_resources$hex_resources[i])
@@ -972,16 +978,13 @@ server <- function(input, output, session){
     setGameData("dice_rolled", TRUE)
   })
   observeEvent(input$move_robber, {
+    print("input$move_robber clicked")
     face_markers <- marker_data_all[marker_data_all$lab=="face",]
     robber_row_data <- face_markers[face_markers$id==ed()$key,]
     robber_init <- piece_maker(piece_type = "robber", robber_row_data)
     
     setGameData("robber_data", robber_init)
     gameLog(paste(input$uname, "moved the robber"))
-    
-    # Add the correct markers back via marker_data()() update here
-    # since they didn't get re-added before
-    setGameData("marker_data", getBuildSpots())
     
     robber_active(FALSE)
   })
@@ -1026,10 +1029,14 @@ server <- function(input, output, session){
     
   })
   observeEvent(input$end_turn, {
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
+    plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
+    
     cur_player_idx <- which(init_player_list()()$uname==input$uname)
     next_player_idx <- cur_player_idx%%nrow(init_player_list()())+1
     next_player <- init_player_list()()$uname[next_player_idx]
     setGameData("current_player", next_player)
+    
     setGameData("dice_rolled", FALSE)
   })
   
@@ -1066,10 +1073,10 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
