@@ -562,7 +562,7 @@ server <- function(input, output, session){
         print(paste("Adding clickables to map for", input$uname))
         static_marker_data <- marker_data()()
         city_spots <- getGameData("build_list")
-        city_spots <- city_spots[city_spots$build=="settlement"]$id
+        city_spots <- city_spots[city_spots$build=="settlement",]$id
         print(city_spots)
         if(length(city_spots)>0){
           static_marker_data[static_marker_data$id%in%city_spots,] <- 
