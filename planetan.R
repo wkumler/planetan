@@ -113,6 +113,7 @@ server <- function(input, output, session){
   robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
   my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
   robber_active <- reactiveVal(FALSE)
+  color_num <- reactiveVal(runif(1))
   
   # These vars are fancy reactives because they're shared ACROSS sessions
   # All are converted to reactiveFileReaders once we have input$game_id
@@ -287,7 +288,7 @@ server <- function(input, output, session){
           h3(paste("Game ID:", input$game_id)),
           h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
           h3("   "),
-          sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = runif(1)),
+          sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = color_num()),
           actionButton("game_start", "Start game!")
         )
       )
@@ -308,7 +309,7 @@ server <- function(input, output, session){
             h3(paste("Game ID:", input$game_id)),
             h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
             h3("   "),
-            sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = runif(1)), # Change back to 1 later
+            sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = color_num()), # Change back to 1 later
           )
         )
         return(join_waiting_div)
@@ -710,6 +711,7 @@ server <- function(input, output, session){
       player_row <- which(color_table$uname==input$uname)
       color_table$pcolor[player_row] <- hsv((1-input$color_choice)*315/360)
       setGameData("color_table", color_table)
+      color_num(input$color_choice)
     }
   })
   observeEvent(input$game_start, {
