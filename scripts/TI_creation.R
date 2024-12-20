@@ -175,10 +175,18 @@ marker_data_unmoved  <- rbind(
   cbind(TI_structure$faces, lab="face")
 )
 # Move them slightly outside the globe to improve interactivity
-marker_data_all <- marker_data_unmoved
-marker_data_all[c("x", "y", "z")] <- marker_data_all[c("x", "y", "z")] %>%
-  apply(1, cart2sphere) %>% `+`(c(0.5, 0, 0)) %>% apply(2, sphere2cart) %>%
-  t() %>% setNames(c("x", "y", "z"))
+moveMarkerOutward <- function(xyzframe, distance=0.5){
+  just_xyz <- xyzframe[c("x", "y", "z")]
+  new_xyz <- just_xyz %>%
+    apply(1, cart2sphere) %>% 
+    `+`(c(distance, 0, 0)) %>% 
+    apply(2, sphere2cart) %>%
+    t() %>% 
+    setNames(c("x", "y", "z"))
+  xyzframe[c("x", "y", "z")] <- new_xyz
+  return(xyzframe)
+}
+marker_data_all <- moveMarkerOutward(marker_data_unmoved)
 
 # Create network of nearby structures
 nearby_structures <- list(

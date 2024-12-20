@@ -10,6 +10,21 @@ camera_eye <- function() {
   theta <- runif(1, 0, 2 * pi)
   c(1.2 * cos(theta), 1.2 * sin(theta))
 }
+moveMarkerOutward <- function(xyzframe, distance=0.5){
+  if(nrow(xyzframe)==0){
+    print("No markers to move outward")
+    return(xyzframe)
+  }
+  just_xyz <- xyzframe[c("x", "y", "z")]
+  new_xyz <- just_xyz %>%
+    apply(1, cart2sphere) %>% 
+    `+`(c(distance, 0, 0)) %>% 
+    apply(2, sphere2cart) %>%
+    t() %>% 
+    setNames(c("x", "y", "z"))
+  xyzframe[c("x", "y", "z")] <- new_xyz
+  return(xyzframe)
+}
 
 
 # Deployment checklist
@@ -429,7 +444,7 @@ server <- function(input, output, session){
       }
       return(gameplay_div)
     }
-    div(class = "center-both", wellPanel(h3("Gameboard placeholder!")))
+    div(class = "center-both", wellPanel(h3("Loading world, please wait...")))
   }) # end output$visible_screen
   output$resource_counts <- renderTable({
     print("Rendering player_resources as a table!")
@@ -484,7 +499,7 @@ server <- function(input, output, session){
       print("Robber is in correct spot already")
       return(NULL)
       my_marker_data(FALSE)
-      setGameData("marker_data", getBuildSpots())
+      # setGameData("marker_data", getBuildSpots())
     }
     
     print("Removing existing robber (and any clickables)")
@@ -508,17 +523,10 @@ server <- function(input, output, session){
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", list(newtrace))
     
     my_robber_data(robber_data()())
-    
-    # Add the correct markers back via marker_data()() update here
-    # since they didn't get re-added before
-    my_marker_data(FALSE)
-    setGameData("marker_data", getBuildSpots())
   })
   observeEvent(marker_data()(), {
     print(paste("marker_data()() triggered for", input$uname))
-    print(my_marker_data())
-    print(marker_data()())
-    
+
     # if(identical(my_marker_data(), marker_data()())){
     #   print("No markers to add!")
     #   return(NULL)
@@ -534,16 +542,22 @@ server <- function(input, output, session){
       return(NULL)
     }
     
-    print(getGameData("dice_rolled"))
-    print(game_status()())
     if(input$uname==getGameData("current_player")){
       if(getGameData("dice_rolled") | game_status()()=="setup"){
         print(paste("Adding clickables to map for", input$uname))
+        static_marker_data <- marker_data()()
+        city_spots <- getGameData("build_list")
+        city_spots <- city_spots[city_spots$build=="settlement"]$id
+        print(city_spots)
+        if(length(city_spots)>0){
+          static_marker_data[static_marker_data$id%in%city_spots,] <- 
+            moveMarkerOutward(static_marker_data[static_marker_data$id%in%city_spots,], 1)
+        }
         newtrace <- list(
-          x = as.list(marker_data()()$x),
-          y = as.list(marker_data()()$y),
-          z = as.list(marker_data()()$z),
-          key = as.list(marker_data()()$id),
+          x = as.list(static_marker_data$x),
+          y = as.list(static_marker_data$y),
+          z = as.list(static_marker_data$z),
+          key = as.list(static_marker_data$id),
           type = "scatter3d",
           mode = "markers",
           marker = list(color="white", opacity=0.1, size=50)
@@ -911,11 +925,13 @@ server <- function(input, output, session){
   })
   observeEvent(input$roll_dice, {
     number_rolled <- sum(sample(1:6, 1), sample(1:6, 1))
+    number_rolled <- 7
     gameLog(paste(input$uname, "rolled a", number_rolled))
     
     if(number_rolled==7){
       print("Activating robber")
       face_markers <- marker_data_all[marker_data_all$lab=="face",]
+      face_markers <- moveMarkerOutward(face_markers, 1.5)
       newtrace <- list(
         x = as.list(face_markers$x),
         y = as.list(face_markers$y),
@@ -987,9 +1003,15 @@ server <- function(input, output, session){
     gameLog(paste(input$uname, "moved the robber"))
     
     robber_active(FALSE)
+    
+    # Add the correct markers back via marker_data()() update here
+    # since they didn't get re-added before
+    my_marker_data(FALSE)
+    setGameData("marker_data", getBuildSpots())
   })
   observeEvent(input$build_here, {
-    print("input$build_here_setup clicked")
+    req(ed()$key)
+    print("input$build_here clicked")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
     
@@ -1073,10 +1095,10 @@ server <- function(input, output, session){
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
