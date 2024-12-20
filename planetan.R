@@ -126,6 +126,7 @@ server <- function(input, output, session){
   player_resources <- reactiveVal(function(){})
   dice_rolled <- reactiveVal(function(){})
   log_reader <- reactiveVal(function(){})
+  color_table <- reactiveVal(function(){})
 
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
@@ -281,12 +282,20 @@ server <- function(input, output, session){
     }
     if(login_status()=="host_waiting"){
       print("Returning host_waiting_div")
+      print(color_table()())
+      print(init_player_list()())
+      static_color_table <- getGameData("color_table")
+      player_color_span <- HTML(paste("Current players:", paste0(
+        "<span style='color:", static_color_table$pcolor, ";'>", static_color_table$uname, "</span>", 
+        ifelse(seq_along(static_color_table$uname) < nrow(static_color_table), ", ", ""), collapse = "")
+      ))
+      print(player_color_span)
       host_waiting_div <- div(
         class = "center-both",
         wellPanel(
           h3("Waiting for players"),
           h3(paste("Game ID:", input$game_id)),
-          h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
+          h3(player_color_span),
           h3("   "),
           sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = color_num()),
           actionButton("game_start", "Start game!")
@@ -302,12 +311,19 @@ server <- function(input, output, session){
       # skip this div and return the gameboard
       if(game_status()()=="players_joining"){
         print("Returning join_waiting_div")
+        print(color_table()())
+        print(init_player_list()())
+        static_color_table <- getGameData("color_table")
+        player_color_span <- HTML(paste("Current players:", paste0(
+          "<span style='color:", static_color_table$pcolor, ";'>", static_color_table$uname, "</span>", 
+          ifelse(seq_along(static_color_table$uname) < nrow(static_color_table), ", ", ""), collapse = "")
+        ))
         join_waiting_div <- div(
           class = "center-both",
           wellPanel(
             h3("Waiting for host to start game"),
             h3(paste("Game ID:", input$game_id)),
-            h3(paste("Current players:", paste(init_player_list()()$uname, collapse = ", "))),
+            h3(player_color_span),
             h3("   "),
             sliderInput("color_choice", label = "Choose a color!", min = 0, max = 1, value = color_num()), # Change back to 1 later
           )
@@ -642,6 +658,12 @@ server <- function(input, output, session){
       filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
       readFunc = readRDS
     ))
+    color_table(reactiveFileReader(
+      intervalMillis = 1000,
+      session = session,
+      filePath = paste0("game_files/", input$game_id, "/color_table.rds"), 
+      readFunc = readRDS
+    ))
   })
   observeEvent(input$join_game_button, {
     print("input$join_game_button clicked")
@@ -660,6 +682,12 @@ server <- function(input, output, session){
         intervalMillis = 1000, 
         session = session, 
         filePath = paste0("game_files/", input$game_id, "/game_status.rds"), 
+        readFunc = readRDS
+      ))
+      color_table(reactiveFileReader(
+        intervalMillis = 1000,
+        session = session,
+        filePath = paste0("game_files/", input$game_id, "/color_table.rds"), 
         readFunc = readRDS
       ))
     }
