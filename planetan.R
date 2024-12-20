@@ -263,6 +263,21 @@ server <- function(input, output, session){
       )
       return(join_game_failed_div)
     }
+    if(login_status()=="rejoin_game_failed"){
+      print("Returning rejoin_game_failed_div")
+      rejoin_game_failed_div <- div(
+        class = "center-both",
+        wellPanel(
+          h3("Provide a username and password"),
+          textInput("uname", label = "Username:", value = "newplayer"),
+          textInput("pwd", label = "Password:", value = "alsopassword"),
+          p("Login failed! Try again or start a new game.", style="color:red;"),
+          actionButton("rejoin_existing_game", "Join game"),
+          actionButton("new_game_button", "Host new game")
+        )
+      )
+      return(rejoin_game_failed_div)
+    }
     if(login_status()=="host_waiting"){
       print("Returning host_waiting_div")
       host_waiting_div <- div(
@@ -678,12 +693,12 @@ server <- function(input, output, session){
       readFunc = readRDS
     ))
     if(!input$uname%in%init_player_list()()$uname){
-      login_status("join_game_failed")
+      login_status("rejoin_game_failed")
       return(NULL)
     }
     player_row <- which(init_player_list()()$uname==input$uname)
     if(input$pwd!=init_player_list()()$pwd[player_row]){
-      login_status("join_game_failed")
+      login_status("rejoin_game_failed")
       return(NULL)
     }
     login_status("success")
