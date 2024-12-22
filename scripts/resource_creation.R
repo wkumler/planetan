@@ -695,7 +695,7 @@ settlement_piece <- function(center_x, center_y, size=side_length/4, color="grey
 
 robber_piece <- function(center_x, center_y, size=side_length/2){
   tractor_gon <- render_gon(7, center_x, center_y, size/2, color="black")
-  tractor_geom <- gon_2_point(tractor_gon, elevation = -1, height = size*1.2, color = "#32CD3255")
+  tractor_geom <- gon_2_point(tractor_gon, elevation = -2, height = size*1.6, color = "#32CD3255")
   tractor_geom <- rotate_geom(tractor_geom, z_deg = 180)
   
   glass_gon <- render_gon(7, center_x, center_y, size*0.8, color="#D1E5F4")

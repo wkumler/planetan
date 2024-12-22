@@ -3,6 +3,7 @@ library(shiny)
 options(shiny.reactlog = TRUE)
 library(plotly)
 source("scripts/resource_creation.R")
+options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
 anti_merge <- function(x, y, by) {
   x[!do.call(paste, x[by]) %in% do.call(paste, y[by]), ]
 }
@@ -580,7 +581,6 @@ server <- function(input, output, session){
         static_marker_data <- marker_data()()
         city_spots <- getGameData("build_list")
         city_spots <- city_spots[city_spots$build=="settlement",]$id
-        print(city_spots)
         if(length(city_spots)>0){
           static_marker_data[static_marker_data$id%in%city_spots,] <- 
             moveMarkerOutward(static_marker_data[static_marker_data$id%in%city_spots,], 1)
@@ -776,7 +776,7 @@ server <- function(input, output, session){
     print("Re-rendering setup_game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
 
-    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1.05, 1.05),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
     # Maybe build ply() as a reactive object (static object?)
@@ -917,7 +917,7 @@ server <- function(input, output, session){
                          color=setup_build_data$pcolor, SIMPLIFY = FALSE)
     all_builds <- combine_geoms(list(globe_plates, combine_geoms(piece_list)))
 
-    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+    set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1.05, 1.05),
                      autorange=FALSE, showspikes=FALSE,
                      showgrid=FALSE, zeroline=FALSE, visible=FALSE)
     # Maybe build ply() as a reactive object (static object?)
@@ -950,6 +950,11 @@ server <- function(input, output, session){
                               maxColorValue = 255),
                 lighting=list(diffuse=1),
                 hoverinfo="none")
+    
+    # print(marker_data()())
+    # print(my_marker_data())
+    print(getGameData("marker_data"))
+    
     return(ply)
   })
   ed <- reactive(event_data(event = "plotly_click", source = "game_world"))
