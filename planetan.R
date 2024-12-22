@@ -870,6 +870,7 @@ server <- function(input, output, session){
     if(next_player=="begin"){
       setGameData("game_status", "gameplay")
       setGameData("current_player", setup_stack[1])
+      setGameData("marker_data", getBuildSpots())
       gameLog("Setup complete! Starting gameplay.")
       
       # Allocate initial resources to players
@@ -970,77 +971,69 @@ server <- function(input, output, session){
   })
   observeEvent(input$roll_dice, {
     number_rolled <- sum(sample(1:6, 1), sample(1:6, 1))
-    number_rolled <- 7
     gameLog(paste(input$uname, "rolled a", number_rolled))
     
     if(number_rolled==7){
       print("Activating robber")
       face_markers <- marker_data_all[marker_data_all$lab=="face",]
       face_markers <- moveMarkerOutward(face_markers, 1.5)
-      newtrace <- list(
-        x = as.list(face_markers$x),
-        y = as.list(face_markers$y),
-        z = as.list(face_markers$z),
-        key = as.list(face_markers$id),
-        type = "scatter3d",
-        mode = "markers",
-        marker = list(color="white", opacity=0.1, size=50)
-      )
-      plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
+      
+      setGameData("marker_data", face_markers)
       robber_active(TRUE)
       setGameData("dice_rolled", TRUE)
       return(NULL) # trigger later marker_data from "move robber here" input instead
     }
-    
-    print("Allocating resources based on roll")
-    robber_basepoint <- cbind(id=0, getGameData("robber_data")$vertices[1,])
-    face_spots <- marker_data_all[marker_data_all$lab=="face",c("id", "x", "y", "z")]
-    rob_dists <- sweep(data.matrix(face_spots), 2, data.matrix(robber_basepoint), `-`)
-    robber_face_id <- names(which.min(rowSums(abs(rob_dists[,c("x", "y", "z")]))))
-    
-    resource_layout <- getGameData("resource_layout")
-    settle_resources <- build_list()()[build_list()()$build%in%c("settlement", "city"),] %>%
-      merge(nearby_structures$verts)
-    unlist_resources <- data.frame(
-      vert_id=rep(settle_resources$id, each=3),
-      owner=rep(settle_resources$owner, each=3),
-      build=rep(settle_resources$build, each=3),
-      id=unlist(settle_resources$nearest_faces)
-    ) %>% 
-      merge(resource_layout[c("id", "hex_resources", "pip")]) %>%
-      .[.$hex_resources!="snow",] %>%
-      .[.$pip==number_rolled,] %>%
-      .[.$id!=robber_face_id]
-    static_player_resources <- getGameData("player_resources")
-    # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
-    print(static_player_resources)
-    print(unlist_resources)
-    for(i in seq_len(nrow(unlist_resources))){
-      player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
-      resource_col <- as.character(unlist_resources$hex_resources[i])
-      if(unlist_resources$build[i]=="settlement"){
-        static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+1
-      } else if(unlist_resources$build[i]=="city"){
-        static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+2
-      } else {
-        stop(paste("Unrecognized build type", unlist_resources$build[i]))
+    if(!robber_active()){
+      print("Allocating resources based on roll")
+      robber_basepoint <- cbind(id=0, getGameData("robber_data")$vertices[1,])
+      face_spots <- marker_data_all[marker_data_all$lab=="face",c("id", "x", "y", "z")]
+      rob_dists <- sweep(data.matrix(face_spots), 2, data.matrix(robber_basepoint), `-`)
+      robber_face_id <- names(which.min(rowSums(abs(rob_dists[,c("x", "y", "z")]))))
+      
+      resource_layout <- getGameData("resource_layout")
+      settle_resources <- build_list()()[build_list()()$build%in%c("settlement", "city"),] %>%
+        merge(nearby_structures$verts)
+      unlist_resources <- data.frame(
+        vert_id=rep(settle_resources$id, each=3),
+        owner=rep(settle_resources$owner, each=3),
+        build=rep(settle_resources$build, each=3),
+        id=unlist(settle_resources$nearest_faces)
+      ) %>% 
+        merge(resource_layout[c("id", "hex_resources", "pip")]) %>%
+        .[.$hex_resources!="snow",] %>%
+        .[.$pip==number_rolled,] %>%
+        .[.$id!=robber_face_id]
+      static_player_resources <- getGameData("player_resources")
+      # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
+      print(static_player_resources)
+      print(unlist_resources)
+      for(i in seq_len(nrow(unlist_resources))){
+        player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
+        resource_col <- as.character(unlist_resources$hex_resources[i])
+        if(unlist_resources$build[i]=="settlement"){
+          static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+1
+        } else if(unlist_resources$build[i]=="city"){
+          static_player_resources[player_row,resource_col] <- static_player_resources[player_row,resource_col]+2
+        } else {
+          stop(paste("Unrecognized build type", unlist_resources$build[i]))
+        }
       }
+      setGameData("player_resources", static_player_resources)
+      
+      # We want to offer as build spots
+      # 1) settlements that aren't too close to other settlements
+      # 2) roads that are close to our own roads (but not already built)
+      # 3) cities where our settlements have already been built
+      # Only if the resources for this are available!
+      print("Updating clickables after roll")
+      setGameData("marker_data", getBuildSpots())
     }
-    setGameData("player_resources", static_player_resources)
-    
-    # We want to offer as build spots
-    # 1) settlements that aren't too close to other settlements
-    # 2) roads that are close to our own roads (but not already built)
-    # 3) cities where our settlements have already been built
-    # Only if the resources for this are available!
-    print("Updating clickables after roll")
-    setGameData("marker_data", getBuildSpots())
     
     setGameData("dice_rolled", TRUE)
   })
   observeEvent(input$move_robber, {
     print("input$move_robber clicked")
-    face_markers <- marker_data_all[marker_data_all$lab=="face",]
+    face_markers <- getGameData("marker_data")
     robber_row_data <- face_markers[face_markers$id==ed()$key,]
     robber_init <- piece_maker(piece_type = "robber", robber_row_data)
     
