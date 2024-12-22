@@ -590,13 +590,13 @@ make_wall <- function(center_x, center_y, nbricks){
   brick_df$elevation <- c(0, 0, 0, 0, 0, 0, 0, side_length/5, side_length/5, 0, 0)
   
   if(nbricks==1){
-    brick_df <- brick_df[sample(1:7, 2, replace = FALSE),]
+    brick_df <- brick_df[sample(1:7, 2),]
   } 
   if(nbricks==2){
-    brick_df <- brick_df[sample(1:7, 4, replace = FALSE),]
+    brick_df <- brick_df[sample(1:7, 4),]
   }
   if(nbricks==3){
-    brick_df <- brick_df[sample(1:7, 6, replace = FALSE),]
+    brick_df <- brick_df[sample(1:7, 6),]
   }
   if(nbricks==4){
     brick_df <- brick_df[c(1:7, 10:11),]
@@ -919,33 +919,33 @@ worldbuilder <- function(globe_layout){
 
 # Debug the world ----
 
-globe_layout <- getRandomGlobeLayout()
-globe_plates <- worldbuilder(globe_layout)
-
-set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
-                 autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
-                 showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-
-base_globe <- plot_ly() %>%
-  add_trace(type="mesh3d",
-            x=globe_plates$vertices$x,
-            y=globe_plates$vertices$y,
-            z=globe_plates$vertices$z,
-            i=globe_plates$faces$i,
-            j=globe_plates$faces$j,
-            k=globe_plates$faces$k,
-            facecolor=rgb(t(col2rgb(globe_plates$faces$color)), maxColorValue = 255),
-            lighting=list(diffuse=1),
-            hoverinfo="none") %>%
-  layout(scene=list(
-    xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
-    aspectmode='cube',
-    camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
-    bgcolor="black"),
-    margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
-  config(displayModeBar = FALSE, scrollZoom=FALSE)
-
-base_globe
+# globe_layout <- getRandomGlobeLayout()
+# globe_plates <- worldbuilder(globe_layout)
+# 
+# set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
+#                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
+#                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+# 
+# base_globe <- plot_ly() %>%
+#   add_trace(type="mesh3d",
+#             x=globe_plates$vertices$x,
+#             y=globe_plates$vertices$y,
+#             z=globe_plates$vertices$z,
+#             i=globe_plates$faces$i,
+#             j=globe_plates$faces$j,
+#             k=globe_plates$faces$k,
+#             facecolor=rgb(t(col2rgb(globe_plates$faces$color)), maxColorValue = 255),
+#             lighting=list(diffuse=1),
+#             hoverinfo="none") %>%
+#   layout(scene=list(
+#     xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+#     aspectmode='cube',
+#     camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+#     bgcolor="black"),
+#     margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
+#   config(displayModeBar = FALSE, scrollZoom=FALSE)
+# 
+# base_globe
 
 # Cleanup for sourcing ----
 # rm(list = setdiff(ls(), 
