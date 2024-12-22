@@ -256,6 +256,9 @@ make_base <- function(center_x, center_y, n_sides,
   border_corner_diff <- cos(interior_angle/360*2*pi/2)*hex_border_width*side_length
   central_hex <- render_gon(n_sides = n_sides, center_x = 0, center_y = 0,
                             side_length = side_length, color = tile_color)
+  central_umbra <- render_gon(n_sides = n_sides, center_x = 0, center_y = 0,
+                              side_length = side_length, color = "black", pepper = FALSE)
+  central_umbra <- move_geom(central_umbra, delta_z = -0.01)
   side_centers <- data.frame(x=rep(NA, n_sides), y=rep(NA, n_sides))
   side_vertices <- central_hex$vertices[c(2:nrow(central_hex$vertices), 2),]
   for(i in 1:(nrow(side_vertices)-1)){
@@ -279,7 +282,7 @@ make_base <- function(center_x, center_y, n_sides,
   }
   correct_geoms <- mapply(rotate_geom, border_geoms, x_deg=0, y_deg=0, 
                           z_deg=side_rotations, SIMPLIFY = FALSE)
-  made_base <- combine_geoms(c(list(central_hex), correct_geoms))
+  made_base <- combine_geoms(c(list(central_hex, central_umbra), correct_geoms))
   move_geom(made_base, center_x, center_y)
 }
 hex_maker <- function(hex_type, n_sides, center_x, center_y, center_z, 
@@ -840,6 +843,7 @@ worldbuilder <- function(globe_layout){
 
 debug_row <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
 piece_data <- piece_maker("robber", data_df_row = debug_row)
+piece_data <- hex_maker("wood", 6, 0, 0, 0, 0, 0, 0)
 set_axis <- list(range=max(abs(piece_data$vertices))*c(-1, 1),
                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
