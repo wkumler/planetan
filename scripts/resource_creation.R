@@ -286,10 +286,11 @@ make_base <- function(center_x, center_y, n_sides,
   move_geom(made_base, center_x, center_y)
 }
 hex_maker <- function(hex_type, n_sides, center_x, center_y, center_z, 
-                      compass_angle, elevation_angle, rotation_angle){
+                      compass_angle, elevation_angle, rotation_angle,
+                      n_res){
   center_vec <- c(center_x, center_y, center_z)
   hex_fun <- get(paste0(hex_type, "_hex"))
-  hex_fun(center_x = center_x, center_y=center_y, n_sides = n_sides) %>%
+  hex_fun(center_x = center_x, center_y=center_y, n_sides = n_sides, n_res=n_res) %>%
     move_geom(delta_z = center_z) %>%
     rotate_geom(z_deg = rotation_angle, manual_center = center_vec) %>%
     rotate_geom(y_deg = elevation_angle, manual_center = center_vec) %>%
@@ -298,14 +299,14 @@ hex_maker <- function(hex_type, n_sides, center_x, center_y, center_z,
 
 
 ### Wood hex functions ----
-wood_hex <- function(center_x, center_y, n_sides){
+wood_hex <- function(center_x, center_y, n_sides, n_res){
   wood_base <- make_base(center_x = center_x, center_y = center_y, n_sides = n_sides,
                          tile_color = forest_floor_color, border_color = hex_border_color)
   forest_add <- make_forest(center_x=center_x, center_y = center_y,
-                            n_sides = n_sides)
+                            n_sides = n_sides, ntrees=n_res*4)
   combine_geoms(list(wood_base, forest_add))
 }
-make_forest <- function(center_x, center_y, n_sides){
+make_forest <- function(center_x, center_y, n_sides, ntrees){
   if(forest_type=="mixed"){
     tree_df <- data.frame(tree_type=sample(c("pine", "deci"), size = ntrees, replace = TRUE))
   } else if(forest_type=="pine"){
@@ -385,14 +386,14 @@ make_tree <- function(center_x, center_y, n_sides, type, height, leafcolor){
 
 
 ### Ore hex functions ----
-ore_hex <- function(center_x, center_y, n_sides){
+ore_hex <- function(center_x, center_y, n_sides, n_res){
   ore_base <- make_base(center_x = center_x, center_y = center_y, 
                         n_sides = n_sides,
                         tile_color = mountain_base_color, border_color = hex_border_color)
-  ore_add <- make_range(center_x=center_x, center_y = center_y, n_sides = n_sides)
+  ore_add <- make_range(center_x=center_x, center_y = center_y, n_sides = n_sides, nmounts=n_res*3)
   return(combine_geoms(list(ore_base, ore_add)))
 }
-make_range <- function(center_x, center_y, n_sides){
+make_range <- function(center_x, center_y, n_sides, nmounts){
   max_height <- side_length/2
   central_mount <- make_mountain(center_x=0, center_y=0, n_sides=n_sides, 
                                  height = max_height, width=max_height*0.7,
@@ -435,15 +436,15 @@ make_mountain <- function(center_x, center_y, height, width, n_sides,
 
 
 ### Sheep hex functions ----
-wool_hex <- function(center_x, center_y, n_sides){
+wool_hex <- function(center_x, center_y, n_sides, n_res){
   wool_base <- make_base(center_x = center_x, center_y = center_y, 
                          n_sides = n_sides,
                          tile_color = meadow_color, border_color = hex_border_color)
   wool_add <- make_flock(center_x=center_x, center_y = center_y,
-                         n_sides = n_sides)
+                         n_sides = n_sides, nsheep=n_res*3)
   return(combine_geoms(list(wool_base, wool_add)))
 }
-make_flock <- function(center_x, center_y, n_sides){
+make_flock <- function(center_x, center_y, n_sides, nsheep){
   sheep_df <- data.frame(size=runif(nsheep, min = side_length/10, max=side_length/5))
   
   interior_angle <- (n_sides-2)*180 / n_sides
@@ -490,13 +491,13 @@ make_sheep <- function(center_x, center_y, height, width, n_sides,
 
 
 ### Wheat hex functions ----
-wheat_hex <- function(center_x, center_y, n_sides){
+wheat_hex <- function(center_x, center_y, n_sides, n_res){
   wheat_base <- make_base(center_x = center_x, center_y = center_y, 
                           n_sides = n_sides,tile_color = dirt_color, 
                           border_color = hex_border_color)
   wheat_field <- make_field(center_x=center_x, center_y = center_y, n_sides = n_sides)
   wheat_sheaves <- make_sheaves(center_x = center_x, center_y = center_y,
-                                n_sides = n_sides)
+                                n_sides = n_sides, nsheaves=n_res)
   return(combine_geoms(list(wheat_base, wheat_field, wheat_sheaves)))
 }
 make_field <- function(center_x, center_y, n_sides){
@@ -524,8 +525,8 @@ make_field <- function(center_x, center_y, n_sides){
   combine_geoms(list(harvested_part, wheat_part))
 }
 
-make_sheaves <- function(center_x, center_y, n_sides){
-  sheaf_df <- data.frame(id=seq_len(sample(2:5, 1)))
+make_sheaves <- function(center_x, center_y, n_sides, nsheaves){
+  sheaf_df <- data.frame(id=seq_len(nsheaves))
   
   interior_angle <- (n_sides-2)*180 / n_sides
   apothem_length <- side_length/2 * tan(interior_angle/2 * pi/180)
@@ -570,15 +571,15 @@ make_sheaf <- function(center_x, center_y, height, width, n_sides){
 
 
 ### Brick hex functions ----
-brick_hex <- function(center_x, center_y, n_sides){
+brick_hex <- function(center_x, center_y, n_sides, n_res){
   brick_base <- make_base(center_x = center_x, center_y = center_y, 
                           n_sides = n_sides,
                           tile_color = brick_base_color, 
                           border_color = hex_border_color)
-  wall <- make_wall(center_x = center_x, center_y = center_y)
+  wall <- make_wall(center_x = center_x, center_y = center_y, nbricks=n_res)
   return(combine_geoms(list(brick_base, wall)))
 }
-make_wall <- function(center_x, center_y){
+make_wall <- function(center_x, center_y, nbricks){
   brick_df <- data.frame(x=c(0, side_length/5, -side_length/5, side_length/5, 
                              -side_length/5, 0, 0, -side_length/10, side_length/10,
                              side_length/2.5, -side_length/2.5))
@@ -587,6 +588,21 @@ make_wall <- function(center_x, center_y){
                   -side_length/10, side_length/10, 0, 0)
   brick_df$rotation <- c(0, 0, 0, 0, 0, 0, 0, 45, 135, 0, 0)
   brick_df$elevation <- c(0, 0, 0, 0, 0, 0, 0, side_length/5, side_length/5, 0, 0)
+  
+  if(nbricks==1){
+    brick_df <- brick_df[sample(1:7, 2, replace = FALSE),]
+  } 
+  if(nbricks==2){
+    brick_df <- brick_df[sample(1:7, 4, replace = FALSE),]
+  }
+  if(nbricks==3){
+    brick_df <- brick_df[sample(1:7, 6, replace = FALSE),]
+  }
+  if(nbricks==4){
+    brick_df <- brick_df[c(1:7, 10:11),]
+  }
+  
+  
   wall <- mapply(make_brick, center_x = brick_df$x, center_y = brick_df$y,
                  elevation=brick_df$elevation,
                  rotation = brick_df$rotation, SIMPLIFY = FALSE)
@@ -604,7 +620,7 @@ make_brick <- function(center_x, center_y, elevation, rotation){
 }
 
 ### Snow hex functions ----
-snow_hex <- function(center_x, center_y, n_sides){
+snow_hex <- function(center_x, center_y, n_sides, n_res){
   snow_base <- make_base(center_x = center_x, center_y = center_y, 
                          n_sides = n_sides,
                          tile_color = snow_default_color, 
@@ -812,6 +828,7 @@ getRandomGlobeLayout <- function(){
   resources <- c("wood", "brick", "wool", "wheat", "ore")
   globe_layout$hex_resources <- c("snow", sample(rep(resources, 6)), "snow")
   globe_layout$pip <- c(0, sample(c(rep(2:6, 3), rep(8:12, 3))), 0)
+  globe_layout$nres <- pmax(0, 7-abs(globe_layout$pip-7)-1)
   globe_layout
 }
 
@@ -827,6 +844,7 @@ worldbuilder <- function(globe_layout){
     compass_angle=globe_layout$compass_angle,
     elevation_angle=globe_layout$elevation_angle,
     rotation_angle=globe_layout$rotation_angle,
+    n_res=globe_layout$nres,
     SIMPLIFY = FALSE
   ))
 }
@@ -839,23 +857,84 @@ worldbuilder <- function(globe_layout){
 
 
 
-# Debug ----
+# Debug individual renders ----
 
-debug_row <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
-piece_data <- piece_maker("robber", data_df_row = debug_row)
-piece_data <- hex_maker("wood", 6, 0, 0, 0, 0, 0, 0)
-set_axis <- list(range=max(abs(piece_data$vertices))*c(-1, 1),
+# debug_row <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
+# piece_data <- piece_maker("robber", data_df_row = debug_row)
+# piece_data <- hex_maker("wood", 6, 0, 0, 0, 0, 0, 0, n_res = 20)
+# piece_data <- hex_maker("brick", 6, 0, 0, 0, 0, 0, 0, n_res = 5)
+# set_axis <- list(range=max(abs(piece_data$vertices))*c(-1, 1),
+#                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
+#                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+# plot_ly() %>%
+#   add_trace(type="mesh3d",
+#             x=piece_data$vertices$x,
+#             y=piece_data$vertices$y,
+#             z=piece_data$vertices$z,
+#             i=piece_data$faces$i,
+#             j=piece_data$faces$j,
+#             k=piece_data$faces$k,
+#             facecolor=rgb(t(col2rgb(piece_data$faces$color)), maxColorValue = 255),
+#             lighting=list(diffuse=1),
+#             hoverinfo="none") %>%
+#   layout(scene=list(
+#     xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+#     aspectmode='cube',
+#     camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+#     bgcolor="black"),
+#     margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
+#   config(displayModeBar = FALSE, scrollZoom=FALSE)
+
+# Debug n_res and plot the lot as a grid
+# res_df <- expand.grid(res_name=c("wood", "brick", "wool", "wheat", "ore"), 
+#                       n_res=1:5)
+# res_df$x <- as.numeric(factor(res_df$res_name))*10-30
+# res_df$y <- as.numeric(factor(res_df$n_res))*10-30
+# # piece_data <- hex_maker("brick", 6, 0, 0, 0, 0, 0, 0, n_res = 5)
+# all_pieces <- pbapply::pbmapply(hex_maker, res_df$res_name, n_sides=5, res_df$x, res_df$y, 0, 0, 0, 0, 
+#                                 res_df$n_res, SIMPLIFY = FALSE)
+# piece_data <- combine_geoms(all_pieces)
+# 
+# set_axis <- list(range=max(abs(piece_data$vertices))*c(-1, 1),
+#                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
+#                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+# plot_ly() %>%
+#   add_trace(type="mesh3d",
+#             x=piece_data$vertices$x,
+#             y=piece_data$vertices$y,
+#             z=piece_data$vertices$z,
+#             i=piece_data$faces$i,
+#             j=piece_data$faces$j,
+#             k=piece_data$faces$k,
+#             facecolor=rgb(t(col2rgb(piece_data$faces$color)), maxColorValue = 255),
+#             lighting=list(diffuse=1),
+#             hoverinfo="none") %>%
+#   layout(scene=list(
+#     xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
+#     aspectmode='cube',
+#     camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
+#     bgcolor="black"),
+#     margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
+#   config(displayModeBar = FALSE)
+
+# Debug the world ----
+
+globe_layout <- getRandomGlobeLayout()
+globe_plates <- worldbuilder(globe_layout)
+
+set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-plot_ly() %>%
+
+base_globe <- plot_ly() %>%
   add_trace(type="mesh3d",
-            x=piece_data$vertices$x,
-            y=piece_data$vertices$y,
-            z=piece_data$vertices$z,
-            i=piece_data$faces$i,
-            j=piece_data$faces$j,
-            k=piece_data$faces$k,
-            facecolor=rgb(t(col2rgb(piece_data$faces$color)), maxColorValue = 255),
+            x=globe_plates$vertices$x,
+            y=globe_plates$vertices$y,
+            z=globe_plates$vertices$z,
+            i=globe_plates$faces$i,
+            j=globe_plates$faces$j,
+            k=globe_plates$faces$k,
+            facecolor=rgb(t(col2rgb(globe_plates$faces$color)), maxColorValue = 255),
             lighting=list(diffuse=1),
             hoverinfo="none") %>%
   layout(scene=list(
@@ -866,30 +945,7 @@ plot_ly() %>%
     margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
   config(displayModeBar = FALSE, scrollZoom=FALSE)
 
-# set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1, 1),
-#                  autorange=FALSE, showspikes=FALSE, fixedrange=TRUE,
-#                  showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-# 
-# base_globe <- plot_ly() %>%
-#   add_trace(type="mesh3d",
-#             x=globe_plates$vertices$x,
-#             y=globe_plates$vertices$y,
-#             z=globe_plates$vertices$z,
-#             i=globe_plates$faces$i,
-#             j=globe_plates$faces$j,
-#             k=globe_plates$faces$k,
-#             facecolor=rgb(t(col2rgb(globe_plates$faces$color)), maxColorValue = 255),
-#             lighting=list(diffuse=1),
-#             hoverinfo="none") %>%
-#   layout(scene=list(
-#     xaxis=set_axis, yaxis=set_axis, zaxis=set_axis,
-#     aspectmode='cube',
-#     camera=list(eye=list(x=0.8, y=0.8,z=0.8)),
-#     bgcolor="black"),
-#     margin=list(l=0, r=0, b=0, t=0, pad=0)) %>%
-#   config(displayModeBar = FALSE, scrollZoom=FALSE)
-# 
-# base_globe
+base_globe
 
 # Cleanup for sourcing ----
 # rm(list = setdiff(ls(), 
