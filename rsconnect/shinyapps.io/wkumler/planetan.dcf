@@ -5,9 +5,9 @@ account: wkumler
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 13620321
-bundleId: 9542122
+bundleId: 9566422
 url: https://wkumler.shinyapps.io/planetan/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: miniglobeplotlyproxy.R|miniplotlyproxydemo.R|planetan.R|README.md
+ignoredFiles: debug_globe_plates.rds|debug_resource_layout.rds|miniglobeplotlyproxy.R|miniplotlyproxydemo.R|planetan.R|README.md
