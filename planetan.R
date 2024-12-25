@@ -101,34 +101,42 @@ server <- function(input, output, session){
     marker_data_all[marker_data_all$id%in%build_spots,]
   }
   
-  # These vars are simple reactives because they're specific to this session
-  login_status <- reactiveVal("startup")
-  my_build_list <- reactiveVal(data.frame(id=numeric(), owner=character(), build=character()))
-  my_marker_data <- reactiveVal(data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
-                                           compass_angle=numeric(), elevation_angle=numeric(),
-                                           lab=character()))
-  my_player_resources <- reactiveVal(data.frame(
-    uname=character(), vp=numeric(), knights=numeric(),
-    wood=numeric(), brick=numeric(), wool=numeric(), wheat=numeric(), ore=numeric()
-  ))
-  robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
-  my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
-  robber_active <- reactiveVal(FALSE)
-  color_num <- reactiveVal(runif(1))
+  # Setup initial values ----
+  setup_initial_values <- TRUE
+  if(setup_initial_values){
+    # These vars are simple reactives because they're specific to this session
+    login_status <- reactiveVal("startup")
+    my_build_list <- reactiveVal(data.frame(id=numeric(), owner=character(), build=character()))
+    my_marker_data <- reactiveVal(data.frame(id=numeric(), x=numeric(), y=numeric(), z=numeric(),
+                                             compass_angle=numeric(), elevation_angle=numeric(),
+                                             lab=character()))
+    my_player_resources <- reactiveVal(data.frame(
+      uname=character(), vp=numeric(), knights=numeric(),
+      wood=numeric(), brick=numeric(), wool=numeric(), wheat=numeric(), ore=numeric()
+    ))
+    robber_spot <- data.frame(x=0, y=0, z=0, compass_angle=0, elevation_angle=0)
+    my_robber_data <- reactiveVal(piece_maker(piece_type = "robber", robber_spot))
+    robber_active <- reactiveVal(FALSE)
+    color_num <- reactiveVal(runif(1))
+    
+    # These vars are fancy reactives because they're shared ACROSS sessions
+    # All are converted to reactiveFileReaders once we have input$game_id
+    init_player_list <- reactiveVal(function(){})
+    game_status <- reactiveVal(function(){})
+    current_player <- reactiveVal(function(){})
+    build_list <- reactiveVal(function(){})
+    marker_data <- reactiveVal(function(){})
+    robber_data <- reactiveVal(function(){})
+    player_resources <- reactiveVal(function(){})
+    dice_rolled <- reactiveVal(function(){})
+    log_reader <- reactiveVal(function(){})
+    color_table <- reactiveVal(function(){})
+    trade_status <- reactiveVal(function(){})
+    trade_responses <- reactiveVal(function(){})
+    proposed_trade <- reactiveVal(function(){})
+  }
   
-  # These vars are fancy reactives because they're shared ACROSS sessions
-  # All are converted to reactiveFileReaders once we have input$game_id
-  init_player_list <- reactiveVal(function(){})
-  game_status <- reactiveVal(function(){})
-  current_player <- reactiveVal(function(){})
-  build_list <- reactiveVal(function(){})
-  marker_data <- reactiveVal(function(){})
-  robber_data <- reactiveVal(function(){})
-  player_resources <- reactiveVal(function(){})
-  dice_rolled <- reactiveVal(function(){})
-  log_reader <- reactiveVal(function(){})
-  color_table <- reactiveVal(function(){})
-
+  # Determine screen outputs ----
   output$visible_screen <- renderUI({
     print("Rendering visible screen!")
     if(login_status()=="startup"){
@@ -333,8 +341,8 @@ server <- function(input, output, session){
       }
     }
     
-    load_reactives <- TRUE
-    if(load_reactives){
+    load_disk_reactives <- TRUE
+    if(load_disk_reactives){
       # Load current_player()() here to avoid loading it separately for host and join
       current_player(reactiveFileReader(
         intervalMillis = 1000, 
@@ -370,6 +378,24 @@ server <- function(input, output, session){
         intervalMillis = 1000, 
         session = session, 
         filePath = paste0("game_files/", input$game_id, "/dice_rolled.rds"), 
+        readFunc = readRDS
+      ))
+      trade_status(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/trade_status.rds"), 
+        readFunc = readRDS
+      ))
+      trade_responses(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/trade_responses.rds"), 
+        readFunc = readRDS
+      ))
+      proposed_trade(reactiveFileReader(
+        intervalMillis = 1000, 
+        session = session, 
+        filePath = paste0("game_files/", input$game_id, "/proposed_trade.rds"), 
         readFunc = readRDS
       ))
       log_reader(reactiveFileReader(
@@ -477,6 +503,123 @@ server <- function(input, output, session){
       }
       return(gameplay_div)
     }
+    if(game_status()()=="trade_offered"){
+      if(trade_status()()=="init_deciding"){
+        if(current_player()()==input$uname){
+          print("Returning trade_setup_div")
+          trade_setup_div <- div(
+            class = "center-both",
+            wellPanel(
+              h3("Choose your trade offer:"),
+              h3("Request:", style="text-align: center;"),
+              fluidRow(
+                column(1),
+                column(2, actionButton("wood_plus", max(0, n_wood()), class = "custom-button-padding"), div(class = "center-content", span("Wood")), actionButton("wood_minus", -min(0, n_wood()), class = "custom-button-padding")),
+                column(2, actionButton("brick_plus", max(0, n_brick()), class = "custom-button-padding"), div(class = "center-content", span("Brick")), actionButton("brick_minus", -min(0, n_brick()), class = "custom-button-padding")),
+                column(2, actionButton("wool_plus", max(0, n_wool()), class = "custom-button-padding"), div(class = "center-content", span("Wool")), actionButton("wool_minus", -min(0, n_wool()), class = "custom-button-padding")),
+                column(2, actionButton("wheat_plus", max(0, n_wheat()), class = "custom-button-padding"), div(class = "center-content", span("Wheat")), actionButton("wheat_minus", -min(0, n_wheat()), class = "custom-button-padding")),
+                column(2, actionButton("ore_plus", max(0, n_ore()), class = "custom-button-padding"), div(class = "center-content", span("Ore")), actionButton("ore_minus", -min(0, n_ore()), class = "custom-button-padding")),
+                column(1)
+              ),
+              h3("Offer:", style="text-align: center;"),
+              actionButton("propose_trade", "Propose trade")
+            )
+          )
+        } else {
+          trade_setup_div <- div(
+            class = "center-both",
+            wellPanel(
+              h3(paste(current_player()(), "is deciding on a trade offer...")),
+            )
+          )
+        }
+        return(trade_setup_div)
+      }
+      if(trade_status()()=="awaiting_response"){
+        print("Returning offer_div")
+        if(current_player()()==input$uname){
+          print("Returning offered_div")
+          nonhost_resp <- trade_responses()()[trade_responses()()$uname!=input$uname,]
+          pretty_responses <- as.data.frame(t(setNames(nonhost_resp$response, nonhost_resp$uname)))
+          radio_options <- nonhost_resp[nonhost_resp$response=="accept","uname"]
+          print(radio_options)
+          if(length(radio_options)==0){
+            print("Nobody responded yet...")
+            offered_div <- div(
+              class = "center-both",
+              wellPanel(
+                h3("Waiting for other players to"),
+                h3("decide on your offer..."),
+                actionButton("cancel_trade", label="Cancel")
+              )
+            )
+            return(offered_div)
+          }
+          if(all(nonhost_resp$response=="reject")){
+            print("Nobody wanted to trade")
+            offered_div <- div(
+              class = "center-both",
+              wellPanel(
+                h3("Nobody accepted your offer!"),
+                actionButton("cancel_trade", label = "Cancel")
+              )
+            )
+            return(offered_div)
+          }
+          offered_div <- div(
+            class = "center-both",
+            wellPanel(
+              h3("Waiting for other players to"),
+              h3("decide on your offer..."),
+              tableOutput(pretty_responses),
+              radioButtons("trade_partner", label = "Who would you like to trade with?", 
+                           choices = radio_options, character(0)),
+              actionButton("choose_partner", label = "Make the trade"),
+              actionButton("cancel_trade", label="Cancel")
+            )
+          )
+          return(offered_div)
+        }
+        if(current_player()()!=input$uname){
+          my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+          if(all(my_res>-proposed_trade()())){
+            offered_div <- div(
+              class = "center-both",
+              wellPanel(
+                h3(paste0("Make this trade with ", current_player()(), "?")),
+                h4(paste0("You receive: ", paste(-(proposed_trade()()[proposed_trade()()<0]), 
+                                                 names(proposed_trade()())[proposed_trade()()<0], 
+                                                 collapse = ", "))),
+                h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
+                                                 names(proposed_trade()())[proposed_trade()()>0], 
+                                                 collapse = ", "))),
+                fluidRow(
+                  column(6, actionButton("accept_proposal", "Accept")),
+                  column(6, actionButton("reject_proposal", "Reject"))
+                )
+              )
+            )
+          } else {
+            offered_div <- div(
+              class = "center-both",
+              wellPanel(
+                h3(paste0("Make this trade with ", current_player()(), "?")),
+                h4(paste0("You receive: ", paste(-(proposed_trade()()[proposed_trade()()<0]), 
+                                                 names(proposed_trade()())[proposed_trade()()<0], 
+                                                 collapse = ", "))),
+                h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
+                                                 names(proposed_trade()())[proposed_trade()()>0], 
+                                                 collapse = ", "))),
+                h3("You don't have the required resources!"),
+                actionButton("reject_proposal", "Reject")
+              )
+            )
+          }
+          return(offered_div)
+          
+        }
+      }
+    }
     div(class = "center-both", wellPanel(h3("Loading world, please wait...")))
   }) # end output$visible_screen
   output$resource_counts <- renderTable({
@@ -484,6 +627,7 @@ server <- function(input, output, session){
     player_resources()()
   })
   
+  # Activate input$game_id-dependent reactives ----
   observeEvent(build_list()(), {
     print(paste("build_list()() triggered for", input$uname))
     
@@ -612,6 +756,7 @@ server <- function(input, output, session){
     my_player_resources(player_resources()())
   })
   
+  # Initialize players and game buttons ----
   observeEvent(input$new_game_button, {
     print("input$new_game_button clicked")
     login_status("make_new_game")
@@ -768,10 +913,46 @@ server <- function(input, output, session){
       wood=5, brick=5, wool=5, wheat=5, ore=6
     ))
     setGameData("dice_rolled", FALSE)
+    setGameData("trade_status", "init_deciding")
+    setGameData("trade_responses", data.frame(uname=init_player_list()()$uname, response="Undecided"))
+    setGameData("proposed_trade", data.frame(wood=0, brick=0, wool=0, wheat=0, ore=0))
     setGameData("game_status", "setup")
     gameLog("Game started")
   })
   
+  # Globe render things ----
+  output$game_log <- renderText({
+    req(input$game_id)
+    req(game_status()())
+    paste(log_reader()(), collapse = "\n")
+  })
+  observe({
+    i <- 0
+    theta <- seq(0, 6 * pi, length.out = 360) 
+    r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
+    cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
+    req(input$rotate_world)
+    if(input$rotate_world){
+      if(game_status()()=="setup"){
+        p <- plotlyProxy("setup_game_world", session)
+      } else {
+        p <- plotlyProxy("game_world", session)
+      }
+      i <<- (i + 1) %% 360
+      set_axis <- list(showspikes=FALSE, showgrid=FALSE, zeroline=FALSE, 
+                       visible=FALSE, range=c(-15, 15))
+      plotlyProxyInvoke(p, "relayout", 
+                        list(scene = list(camera = list(eye = list(
+                          x = cam_coords[i,"x"],
+                          y = cam_coords[i,"y"],
+                          z = cam_coords[i,"z"])
+                        ), bgcolor="black", aspectmode="cube",
+                        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
+    }
+    invalidateLater(100, session)
+  }) # move camera
+  
+  # Setup observeEvents and output$setup_game_world ----
   output$setup_game_world <- renderPlotly({
     print("Re-rendering setup_game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
@@ -837,6 +1018,7 @@ server <- function(input, output, session){
   })
   observeEvent(input$build_here_setup, {
     print("input$build_here_setup clicked")
+    updateActionButton(session, "build_here_setup", label = "Build here?", disabled = TRUE)
     
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
@@ -901,6 +1083,7 @@ server <- function(input, output, session){
     }
   })
   
+  # Gameplay observeEvents and output$game_world ----
   output$game_world <- renderPlotly({
     print("Re-rendering game_world")
     globe_plates <- getGameData("globe_plates", print_value = FALSE)
@@ -954,6 +1137,7 @@ server <- function(input, output, session){
     # print(marker_data()())
     # print(my_marker_data())
     print(getGameData("marker_data"))
+    setGameData("marker_data", getGameData("marker_data"))
     
     return(ply)
   })
@@ -1055,6 +1239,7 @@ server <- function(input, output, session){
   observeEvent(input$build_here, {
     req(ed()$key)
     print("input$build_here clicked")
+    updateActionButton(session, "build_here", label = "Build here?", disabled = TRUE)
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
     
@@ -1090,9 +1275,6 @@ server <- function(input, output, session){
     print("Updating marker_data()()")
     setGameData("marker_data", getBuildSpots())
   })
-  observeEvent(input$offer_trade, {
-    
-  })
   observeEvent(input$end_turn, {
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(2))
@@ -1105,36 +1287,86 @@ server <- function(input, output, session){
     setGameData("dice_rolled", FALSE)
   })
   
-  output$game_log <- renderText({
-    req(input$game_id)
-    req(game_status()())
-    paste(log_reader()(), collapse = "\n")
+  # Trade related observeEvents and reactives ----
+  n_wood <- reactiveVal(0)
+  n_brick <- reactiveVal(0)
+  n_wool <- reactiveVal(0)
+  n_wheat <- reactiveVal(0)
+  n_ore <- reactiveVal(0)
+  observeEvent(input$wood_plus, {n_wood(n_wood()+1)})
+  observeEvent(input$brick_plus, {n_brick(n_brick()+1)})
+  observeEvent(input$wool_plus, {n_wool(n_wool()+1)})
+  observeEvent(input$wheat_plus, {n_wheat(n_wheat()+1)})
+  observeEvent(input$ore_plus, {n_ore(n_ore()+1)})
+  observeEvent(input$wood_minus, {n_wood(n_wood()-1)})
+  observeEvent(input$brick_minus, {n_brick(n_brick()-1)})
+  observeEvent(input$wool_minus, {n_wool(n_wool()-1)})
+  observeEvent(input$wheat_minus, {n_wheat(n_wheat()-1)})
+  observeEvent(input$ore_minus, {n_ore(n_ore()-1)})
+  
+  observeEvent(input$offer_trade, {
+    n_wood(0)
+    n_brick(0)
+    n_wool(0)
+    n_wheat(0)
+    n_ore(0)
+    setGameData("game_status", "trade_offered")
+    setGameData("trade_status", "init_deciding")
   })
-  observe({
-    i <- 0
-    theta <- seq(0, 6 * pi, length.out = 360) 
-    r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
-    cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
-    req(input$rotate_world)
-    if(input$rotate_world){
-      if(game_status()()=="setup"){
-        p <- plotlyProxy("setup_game_world", session)
-      } else {
-        p <- plotlyProxy("game_world", session)
-      }
-      i <<- (i + 1) %% 360
-      set_axis <- list(showspikes=FALSE, showgrid=FALSE, zeroline=FALSE, 
-                       visible=FALSE, range=c(-15, 15))
-      plotlyProxyInvoke(p, "relayout", 
-                        list(scene = list(camera = list(eye = list(
-                          x = cam_coords[i,"x"],
-                          y = cam_coords[i,"y"],
-                          z = cam_coords[i,"z"])
-                        ), bgcolor="black", aspectmode="cube",
-                        xaxis=set_axis, yaxis=set_axis, zaxis=set_axis)))
-    }
-    invalidateLater(100, session)
-  }) # move camera
+  observeEvent(input$propose_trade, {
+    proposed_trade <- data.frame(wood=n_wood(), brick=n_brick(), wool=n_wool(), wheat=n_wheat(), ore=n_ore())
+    setGameData("proposed_trade", proposed_trade)
+    trade_responses <- data.frame(uname=init_player_list()()$uname, response="Undecided")
+    setGameData("trade_responses", trade_responses)
+    setGameData("trade_status", "awaiting_response")
+  })
+  observeEvent(input$accept_proposal, {
+    static_trade_data <- getGameData("trade_responses")
+    static_trade_data$response[static_trade_data$uname==input$uname] <- "accept"
+    setGameData("trade_responses", static_trade_data)
+    updateActionButton(session, inputId = "accept_proposal", label = "Accept", disabled = TRUE)
+    updateActionButton(session, inputId = "reject_proposal", label = "Reject", disabled = TRUE)
+  })
+  observeEvent(input$reject_proposal, {
+    static_trade_data <- getGameData("trade_responses")
+    static_trade_data$response[static_trade_data$uname==input$uname] <- "reject"
+    setGameData("trade_responses", static_trade_data)
+    updateActionButton(session, inputId = "accept_proposal", label = "Accept", disabled = TRUE)
+    updateActionButton(session, inputId = "reject_proposal", label = "Reject", disabled = TRUE)
+  })
+  observeEvent(input$choose_partner, {
+    req(input$trade_partner)
+    
+    static_player_resources <- getGameData("player_resources")
+    # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
+    print(static_player_resources)
+    print(input$uname)
+    print(input$trade_partner)
+    print(proposed_trade)
+    static_player_resources[static_player_resources$uname==input$uname,
+                            c("wood", "brick", "wool", "wheat", "ore")] <- 
+      static_player_resources[static_player_resources$uname==input$uname,
+                              c("wood", "brick", "wool", "wheat", "ore")] + proposed_trade()()
+    static_player_resources[static_player_resources$uname==input$trade_partner,
+                            c("wood", "brick", "wool", "wheat", "ore")] <- 
+      static_player_resources[static_player_resources$uname==input$trade_partner,
+                              c("wood", "brick", "wool", "wheat", "ore")] - proposed_trade()()
+    setGameData("player_resources", static_player_resources)
+    trade_responses <- data.frame(uname=init_player_list()()$uname, response="Undecided")
+    setGameData("trade_responses", trade_responses)
+    setGameData("trade_status", "init_deciding")
+    setGameData("game_status", "gameplay")
+    setGameData("marker_data", getBuildSpots())
+  })
+  observeEvent(input$cancel_trade, {
+    proposed_trade <- data.frame(wood=n_wood(), brick=n_brick(), wool=n_wool(), wheat=n_wheat(), ore=n_ore())
+    setGameData("proposed_trade", proposed_trade)
+    
+    trade_responses <- data.frame(uname=init_player_list()()$uname, response="Undecided")
+    setGameData("trade_responses", trade_responses)
+    setGameData("game_status", "gameplay")
+    setGameData("trade_status", "init_deciding")
+  })
 }
 
 
@@ -1143,5 +1375,6 @@ server <- function(input, output, session){
 # if(!file.exists("game_files/existing_game_ids.rds")){
 #   saveRDS("ABC", "game_files/existing_game_ids.rds")
 # }
+browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
