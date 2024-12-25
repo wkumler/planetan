@@ -12,11 +12,20 @@ body {
 }
 
 .center-content {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  flex-direction: column; /* Ensures vertical stacking of button and label */
 }
 
 .btn-default {
   width: 100%;
+}
+
+.custom-button-padding {
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 #options-container {
@@ -63,4 +72,12 @@ body {
   display: block;
   width: 100%;
   text-align: center;
+}
+
+
+.resource-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
