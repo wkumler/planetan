@@ -1186,7 +1186,7 @@ server <- function(input, output, session){
   })
   observeEvent(input$roll_dice, {
     number_rolled <- sum(sample(1:6, 1), sample(1:6, 1))
-    gameLog(paste(input$uname, "rolled a", number_rolled))
+    gameLog(paste(input$uname, "rolled the dice"))
     
     if(number_rolled==7){
       print("Activating robber")
@@ -1218,10 +1218,16 @@ server <- function(input, output, session){
         .[.$hex_resources!="snow",] %>%
         .[.$pip==number_rolled,] %>%
         .[.$id!=robber_face_id]
+      if(nrow(unlist_resources)>0){
+        for(player_i in unique(unlist_resources$owner)){
+          p_res <- table(unlist_resources)[player_i,]
+          p_res <- p_res[p_res>0]
+          gameLog(paste(player_i, "received", paste(p_res, names(p_res), collapse = " and ")))
+        }
+      }
+      
       static_player_resources <- getGameData("player_resources")
       # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
-      print(static_player_resources)
-      print(unlist_resources)
       for(i in seq_len(nrow(unlist_resources))){
         player_row <- which(static_player_resources$uname==unlist_resources$owner[i])
         resource_col <- as.character(unlist_resources$hex_resources[i])
@@ -1396,11 +1402,11 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
