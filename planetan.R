@@ -601,38 +601,37 @@ server <- function(input, output, session){
         if(current_player()()!=input$uname){
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
           output$my_res <- renderTable(my_res)
+          top_taglist <- tagList(
+            h3(paste0("Make this trade with ", current_player()(), "?")),
+            h4(paste0("You receive: ", paste(-(proposed_trade()()[proposed_trade()()<0]), 
+                                             names(proposed_trade()())[proposed_trade()()<0], 
+                                             collapse = ", "))),
+            h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
+                                             names(proposed_trade()())[proposed_trade()()>0], 
+                                             collapse = ", "))),
+            h4("You have:"),
+            tableOutput("my_res")
+          )
           if(all(my_res>=proposed_trade()())){
             offered_div <- div(
               class = "center-both",
               wellPanel(
-                h3(paste0("Make this trade with ", current_player()(), "?")),
-                h4(paste0("You receive: ", paste(-(proposed_trade()()[proposed_trade()()<0]), 
-                                                 names(proposed_trade()())[proposed_trade()()<0], 
-                                                 collapse = ", "))),
-                h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
-                                                 names(proposed_trade()())[proposed_trade()()>0], 
-                                                 collapse = ", "))),
-                h4("You have:"),
-                tableOutput("my_res"),
-                fluidRow(
-                  column(6, actionButton("accept_proposal", "Accept")),
-                  column(6, actionButton("reject_proposal", "Reject"))
-                )
+                c(top_taglist, tagList(
+                  fluidRow(
+                    column(6, actionButton("accept_proposal", "Accept")),
+                    column(6, actionButton("reject_proposal", "Reject"))
+                  )
+                ))
               )
             )
           } else {
             offered_div <- div(
               class = "center-both",
               wellPanel(
-                h3(paste0("Make this trade with ", current_player()(), "?")),
-                h4(paste0("You receive: ", paste(-(proposed_trade()()[proposed_trade()()<0]), 
-                                                 names(proposed_trade()())[proposed_trade()()<0], 
-                                                 collapse = ", "))),
-                h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
-                                                 names(proposed_trade()())[proposed_trade()()>0], 
-                                                 collapse = ", "))),
-                h3("You don't have the required resources!"),
-                actionButton("reject_proposal", "Reject")
+                c(top_taglist, tagList(
+                  h3("You don't have the required resources!"),
+                  actionButton("reject_proposal", "Reject")
+                ))
               )
             )
           }
@@ -1497,11 +1496,11 @@ server <- function(input, output, session){
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
