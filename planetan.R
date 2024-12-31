@@ -1,6 +1,5 @@
 
 library(shiny)
-options(shiny.reactlog = TRUE)
 library(plotly)
 source("scripts/resource_creation.R")
 options(browser=r"(C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe)")
@@ -487,20 +486,21 @@ server <- function(input, output, session){
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
-            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
+            # div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       } else {
         gameplay_div <- tagList(
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
+            h4(paste("Game ID:", input$game_id)),
             h3("Waiting for ", curp_span, " to finish their turn."),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
-            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
+            # div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       }
