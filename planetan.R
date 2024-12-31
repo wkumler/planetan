@@ -1053,16 +1053,14 @@ server <- function(input, output, session){
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
   })
   observeEvent(input$build_here_setup, {
+    req(setup_ed()$key)
     print("input$build_here_setup clicked")
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = TRUE)
     
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
-    print(setup_ed())
     build_spot <- marker_data_unmoved[setup_ed()$key,]
     build_type <- ifelse(build_spot$lab=="edge", "road", "settlement")
-    print(build_type)
-    print(build_spot)
     new_build <- data.frame(id=build_spot$id, owner=input$uname, build=build_type)
     setGameData("build_list", rbind(build_list()(), new_build))
     gameLog(paste0(input$uname, " built a ", new_build$build))
@@ -1266,6 +1264,7 @@ server <- function(input, output, session){
     setGameData("dice_rolled", TRUE)
   })
   observeEvent(input$move_robber, {
+    req(ed()$key)
     print("input$move_robber clicked")
     face_markers <- getGameData("marker_data")
     robber_row_data <- face_markers[face_markers$id==ed()$key,]
@@ -1445,11 +1444,11 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
