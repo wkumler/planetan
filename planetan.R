@@ -520,6 +520,7 @@ server <- function(input, output, session){
       if(trade_status()()=="init_deciding"){
         if(current_player()()==input$uname){
           print("Returning trade_setup_div")
+          my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
           trade_setup_div <- div(
             class = "center-both",
             wellPanel(
@@ -535,6 +536,8 @@ server <- function(input, output, session){
                 column(1)
               ),
               h3("Offer:", style="text-align: center;"),
+              h4("You have:"),
+              tableOutput(my_res),
               actionButton("propose_trade", "Propose trade")
             )
           )
@@ -552,10 +555,23 @@ server <- function(input, output, session){
         print("Returning offer_div")
         if(current_player()()==input$uname){
           print("Returning offered_div")
+          print(trade_responses()())
           nonhost_resp <- trade_responses()()[trade_responses()()$uname!=input$uname,]
+          print(nonhost_resp)
           pretty_responses <- as.data.frame(t(setNames(nonhost_resp$response, nonhost_resp$uname)))
           radio_options <- nonhost_resp[nonhost_resp$response=="accept","uname"]
           print(radio_options)
+          if(all(nonhost_resp$response=="reject")){
+            print("Nobody wanted to trade")
+            rejected_div <- div(
+              class = "center-both",
+              wellPanel(
+                h3("Nobody accepted your offer!"),
+                actionButton("cancel_trade", label = "Cancel")
+              )
+            )
+            return(rejected_div)
+          }
           if(length(radio_options)==0){
             print("Nobody responded yet...")
             offered_div <- div(
@@ -564,17 +580,6 @@ server <- function(input, output, session){
                 h3("Waiting for other players to"),
                 h3("decide on your offer..."),
                 actionButton("cancel_trade", label="Cancel")
-              )
-            )
-            return(offered_div)
-          }
-          if(all(nonhost_resp$response=="reject")){
-            print("Nobody wanted to trade")
-            offered_div <- div(
-              class = "center-both",
-              wellPanel(
-                h3("Nobody accepted your offer!"),
-                actionButton("cancel_trade", label = "Cancel")
               )
             )
             return(offered_div)
@@ -595,7 +600,7 @@ server <- function(input, output, session){
         }
         if(current_player()()!=input$uname){
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-          if(all(my_res>-proposed_trade()())){
+          if(all(my_res>=proposed_trade()())){
             offered_div <- div(
               class = "center-both",
               wellPanel(
@@ -606,6 +611,8 @@ server <- function(input, output, session){
                 h4(paste0("You provide: ", paste(proposed_trade()()[proposed_trade()()>0], 
                                                  names(proposed_trade()())[proposed_trade()()>0], 
                                                  collapse = ", "))),
+                h4("You have:"),
+                tableOutput(my_res),
                 fluidRow(
                   column(6, actionButton("accept_proposal", "Accept")),
                   column(6, actionButton("reject_proposal", "Reject"))
@@ -1372,12 +1379,28 @@ server <- function(input, output, session){
   observeEvent(input$wool_plus, {n_wool(n_wool()+1)})
   observeEvent(input$wheat_plus, {n_wheat(n_wheat()+1)})
   observeEvent(input$ore_plus, {n_ore(n_ore()+1)})
-  observeEvent(input$wood_minus, {n_wood(n_wood()-1)})
-  observeEvent(input$brick_minus, {n_brick(n_brick()-1)})
-  observeEvent(input$wool_minus, {n_wool(n_wool()-1)})
-  observeEvent(input$wheat_minus, {n_wheat(n_wheat()-1)})
-  observeEvent(input$ore_minus, {n_ore(n_ore()-1)})
   
+  observeEvent(input$wood_minus, {
+    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+    n_wood(min(my_res$wood, n_wood()-1))
+  })
+  observeEvent(input$brick_minus, {
+    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+    n_brick(min(my_res$brick, n_brick()-1))
+  })
+  observeEvent(input$wool_minus, {
+    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+    n_wool(min(my_res$wool, n_wool()-1))
+  })
+  observeEvent(input$wheat_minus, {
+    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+    n_wheat(min(my_res$wheat, n_wheat()-1))
+  })
+  observeEvent(input$ore_minus, {
+    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+    n_ore(min(my_res$ore, n_ore()-1))
+  })
+
   observeEvent(input$offer_trade, {
     n_wood(0)
     n_brick(0)
@@ -1444,11 +1467,11 @@ server <- function(input, output, session){
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
