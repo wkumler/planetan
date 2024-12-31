@@ -521,6 +521,7 @@ server <- function(input, output, session){
         if(current_player()()==input$uname){
           print("Returning trade_setup_div")
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+          output$my_res <- renderTable(my_res)
           trade_setup_div <- div(
             class = "center-both",
             wellPanel(
@@ -537,11 +538,13 @@ server <- function(input, output, session){
               ),
               h3("Offer:", style="text-align: center;"),
               h4("You have:"),
-              tableOutput(my_res),
-              actionButton("propose_trade", "Propose trade")
+              tableOutput("my_res"),
+              actionButton("propose_trade", "Propose trade"),
+              actionButton("cancel_trade", "Cancel")
             )
           )
-        } else {
+        }
+        if(current_player()()!=input$uname){
           trade_setup_div <- div(
             class = "center-both",
             wellPanel(
@@ -563,14 +566,13 @@ server <- function(input, output, session){
           print(radio_options)
           if(all(nonhost_resp$response=="reject")){
             print("Nobody wanted to trade")
-            rejected_div <- div(
+            offered_div <- div(
               class = "center-both",
               wellPanel(
                 h3("Nobody accepted your offer!"),
-                actionButton("cancel_trade", label = "Cancel")
+                actionButton("cancel_trade", label = "Cancel trade")
               )
             )
-            return(rejected_div)
           }
           if(length(radio_options)==0){
             print("Nobody responded yet...")
@@ -582,7 +584,6 @@ server <- function(input, output, session){
                 actionButton("cancel_trade", label="Cancel")
               )
             )
-            return(offered_div)
           }
           offered_div <- div(
             class = "center-both",
@@ -596,10 +597,10 @@ server <- function(input, output, session){
               actionButton("cancel_trade", label="Cancel")
             )
           )
-          return(offered_div)
         }
         if(current_player()()!=input$uname){
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+          output$my_res <- renderTable(my_res)
           if(all(my_res>=proposed_trade()())){
             offered_div <- div(
               class = "center-both",
@@ -612,7 +613,7 @@ server <- function(input, output, session){
                                                  names(proposed_trade()())[proposed_trade()()>0], 
                                                  collapse = ", "))),
                 h4("You have:"),
-                tableOutput(my_res),
+                tableOutput("my_res"),
                 fluidRow(
                   column(6, actionButton("accept_proposal", "Accept")),
                   column(6, actionButton("reject_proposal", "Reject"))
@@ -635,9 +636,8 @@ server <- function(input, output, session){
               )
             )
           }
-          return(offered_div)
-          
         }
+        return(offered_div)
       }
     }
     if(game_status()()=="game_won"){
@@ -1379,26 +1379,25 @@ server <- function(input, output, session){
   observeEvent(input$wool_plus, {n_wool(n_wool()+1)})
   observeEvent(input$wheat_plus, {n_wheat(n_wheat()+1)})
   observeEvent(input$ore_plus, {n_ore(n_ore()+1)})
-  
   observeEvent(input$wood_minus, {
-    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-    n_wood(min(my_res$wood, n_wood()-1))
+    my_wood <- player_resources()()[player_resources()()$uname==input$uname,"wood"]
+    n_wood(max(-my_wood, n_wood()-1))
   })
   observeEvent(input$brick_minus, {
-    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-    n_brick(min(my_res$brick, n_brick()-1))
+    my_brick <- player_resources()()[player_resources()()$uname==input$uname,"brick"]
+    n_brick(max(-my_brick, n_brick()-1))
   })
   observeEvent(input$wool_minus, {
-    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-    n_wool(min(my_res$wool, n_wool()-1))
+    my_wool <- player_resources()()[player_resources()()$uname==input$uname,"wool"]
+    n_wool(max(-my_wool, n_wool()-1))
   })
   observeEvent(input$wheat_minus, {
-    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-    n_wheat(min(my_res$wheat, n_wheat()-1))
+    my_wheat <- player_resources()()[player_resources()()$uname==input$uname,"wheat"]
+    n_wheat(max(-my_wheat, n_wheat()-1))
   })
   observeEvent(input$ore_minus, {
-    my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
-    n_ore(min(my_res$ore, n_ore()-1))
+    my_ore <- player_resources()()[player_resources()()$uname==input$uname,"ore"]
+    n_ore(max(-my_ore, n_ore()-1))
   })
 
   observeEvent(input$offer_trade, {
@@ -1435,11 +1434,6 @@ server <- function(input, output, session){
     req(input$trade_partner)
     
     static_player_resources <- getGameData("player_resources")
-    # static_player_resources <- readRDS("game_files/QUNWYD/player_resources.rds")
-    print(static_player_resources)
-    print(input$uname)
-    print(input$trade_partner)
-    print(proposed_trade)
     static_player_resources[static_player_resources$uname==input$uname,
                             c("wood", "brick", "wool", "wheat", "ore")] <- 
       static_player_resources[static_player_resources$uname==input$uname,
