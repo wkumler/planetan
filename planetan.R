@@ -623,6 +623,20 @@ server <- function(input, output, session){
         }
       }
     }
+    if(game_status()()=="game_won"){
+      print("Returning game_won div!")
+      color_table <- getGameData("color_table")
+      player_color <- color_table[color_table$uname==current_player()(),"pcolor"]
+      uname_span <- span(style=paste0("color: ", player_color, ";"), current_player()())
+      game_won_div <- div(
+        class = "center-both",
+        wellPanel(
+          h3(uname_span, " won this game!"),
+          actionButton("new_game_button", "Start a new one?")
+        )
+      )
+      return(game_won_div)
+    }
     div(class = "center-both", wellPanel(h3("Loading world, please wait...")))
   }) # end output$visible_screen
   output$resource_counts <- renderTable({
@@ -721,6 +735,9 @@ server <- function(input, output, session){
       my_marker_data(marker_data()())
       return(NULL)
     }
+    if(game_status()()=="game_won"){
+      return(NULL)
+    }
     
     if(input$uname==getGameData("current_player")){
       if(getGameData("dice_rolled") | game_status()()=="setup"){
@@ -752,6 +769,11 @@ server <- function(input, output, session){
   })
   observeEvent(player_resources()(), {
     print(paste("player_resources()() triggered for", input$uname))
+    if(any(player_resources()()$vp>=10)){
+      game_winner <- player_resources()()$uname[player_resources()()$vp>=10]
+      setGameData("game_status", "game_won")
+      setGameData("current_player", game_winner)
+    }
     if(identical(my_player_resources(), player_resources()())){
       print("No resource update needed")
       return(NULL)
