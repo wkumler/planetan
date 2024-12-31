@@ -766,11 +766,16 @@ server <- function(input, output, session){
           static_marker_data[static_marker_data$id%in%city_spots,] <- 
             moveMarkerOutward(static_marker_data[static_marker_data$id%in%city_spots,], 1)
         }
+        static_marker_data$textlab <- ifelse(static_marker_data$lab=="edge", "road", 
+                                             ifelse(static_marker_data$id%in%city_spots, "city", "settlement"))
         newtrace <- list(
           x = as.list(static_marker_data$x),
           y = as.list(static_marker_data$y),
           z = as.list(static_marker_data$z),
           key = as.list(static_marker_data$id),
+          text = as.list(static_marker_data$textlab), 
+          hoverinfo = "text",
+          hovertemplate=paste0("Build a %{text}?<extra></extra>"),
           type = "scatter3d",
           mode = "markers",
           marker = list(color="white", opacity=0.1, size=50)
@@ -1037,8 +1042,9 @@ server <- function(input, output, session){
     if(isolate(current_player()())==input$uname){
       ply <- ply %>%
         add_trace(type="scatter3d", data=marker_data_all[marker_data_all$lab=="vertex",],
-                  x=~x, y=~y, z=~z, key=~id, mode="markers",
-                  marker=list(color="white", opacity=0.1, size=50))
+                  x=~x, y=~y, z=~z, key=~id, text="settlement", hoverinfo="text",
+                  mode="markers", marker=list(color="white", opacity=0.1, size=50),
+                  hovertemplate=paste0("Build a %{text}?<extra></extra>"))
     }
     
     # Trace 0 = globe
@@ -1052,9 +1058,23 @@ server <- function(input, output, session){
     req(setup_ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("setup_game_world clicked!")
     print(setup_ed())
+    if(setup_ed()$key%in%1:60){
+      hovertext <- "Build a settlement here?"
+    } else {
+      hovertext <- "Build a road here?"
+    }
     plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("deleteTraces", list(3)) # Remove colored trace if it exists
-    newtrace <- list(x = list(setup_ed()$x), y = list(setup_ed()$y), z=list(setup_ed()$z), key=list(setup_ed()$key), type = "scatter3d",
-                     mode = "markers", marker=list(color="red", opacity=0.2, size=50))
+    newtrace <- list(x = list(setup_ed()$x), 
+                     y = list(setup_ed()$y), 
+                     z=list(setup_ed()$z), 
+                     key=list(setup_ed()$key), 
+                     text=list(hovertext),
+                     hoverinfo="text",
+                     type = "scatter3d",
+                     mode = "markers", 
+                     marker=list(color="red", opacity=0.2, size=50)
+                     )
+
     plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
@@ -1186,11 +1206,27 @@ server <- function(input, output, session){
   observeEvent(ed(), {
     req(ed()$key) # Prevent clicks on the GLOBE (not markers) from registering
     print("game_world clicked!")
-    print(ed())
+    if(ed()$key%in%1:60){
+      if(ed()$key%in%build_list()()$id[build_list()()$build=="settlement"]){
+        hovertext <- "Build a city here?"
+      } else {
+        hovertext <- "Build a settlement here?"
+      }
+    } else {
+      hovertext <- "Build a road here?"
+    }
+    
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
-    newtrace <- list(x = list(ed()$x), y = list(ed()$y), z=list(ed()$z), 
-                     key=list(ed()$key), type = "scatter3d",
-                     mode = "markers", marker=list(color="red", opacity=0.2, size=50))
+    newtrace <- list(x = list(ed()$x), 
+                     y = list(ed()$y), 
+                     z=list(ed()$z), 
+                     key=list(ed()$key), 
+                     text=list(hovertext),
+                     hoverinfo="text",
+                     type = "scatter3d",
+                     mode = "markers", 
+                     marker=list(color="red", opacity=0.2, size=50))
+    
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     if(robber_active()){
@@ -1461,11 +1497,11 @@ server <- function(input, output, session){
 }
 
 
-# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-# if(!dir.exists("game_files"))dir.create("game_files")
-# if(!file.exists("game_files/existing_game_ids.rds")){
-#   saveRDS("ABC", "game_files/existing_game_ids.rds")
-# }
+if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+if(!dir.exists("game_files"))dir.create("game_files")
+if(!file.exists("game_files/existing_game_ids.rds")){
+  saveRDS("ABC", "game_files/existing_game_ids.rds")
+}
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
