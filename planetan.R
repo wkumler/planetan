@@ -417,6 +417,7 @@ server <- function(input, output, session){
         setup_div <- tagList(
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
+            h4(paste("Game ID:", input$game_id)),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
@@ -431,6 +432,7 @@ server <- function(input, output, session){
         setup_div <- tagList(
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
+            h4(paste("Game ID:", input$game_id)),
             h3("Waiting for ", curp_span, " to choose setup spots."),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
             tableOutput("resource_counts")
@@ -455,6 +457,7 @@ server <- function(input, output, session){
         gameplay_div <- tagList(
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
+            h4(paste("Game ID:", input$game_id)),
             if(dice_rolled()()==FALSE){ # Has to be reactive to trigger rerender
               tagList(
                 h3("Roll the dice to begin your turn."),
