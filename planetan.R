@@ -921,8 +921,9 @@ server <- function(input, output, session){
     # Set game_status to "setup"
     print("Starting game!")
     login_status("success")
-    new_play_order <- init_player_list()()[sample(1:nrow(init_player_list()())),]
-    new_play_order <- merge(new_play_order, getGameData("color_table"))
+    new_play_order <- merge(init_player_list()(), getGameData("color_table"))
+    new_play_order <- new_play_order[sample(1:nrow(new_play_order)),]
+    
     setGameData("init_player_list", new_play_order)
     setGameData("current_player", new_play_order$uname[1])
     setGameData("marker_data_all", marker_data_all, print_value = FALSE)
