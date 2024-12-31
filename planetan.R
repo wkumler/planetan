@@ -457,32 +457,42 @@ server <- function(input, output, session){
           sidebarPanel(
             h3("Welcome to Planetan, ", uname_span, "!"),
             h4(paste("Game ID:", input$game_id)),
-            if(dice_rolled()()==FALSE){ # Has to be reactive to trigger rerender
+            if(robber_active()){
               tagList(
-                h3("Roll the dice to begin your turn."),
-                actionButton("roll_dice", "Roll the dice"),
-                div(class = "scrollable-log", verbatimTextOutput("game_log")),
-                tableOutput("resource_counts")
+                h3("Robber active! Choose where it should go."),
+                actionButton("move_robber", "Move the robber here", disabled = TRUE)
               )
             } else {
-              if(robber_active()){
-                tagList(
-                  h3("Robber active! Choose where it should go."),
-                  actionButton("move_robber", "Move the robber here", disabled = TRUE),
-                  div(class = "scrollable-log", verbatimTextOutput("game_log")),
-                  tableOutput("resource_counts")
-                )
+              if(dice_rolled()()==FALSE){ # Has to be reactive to trigger rerender
+                if(player_resources()()$knights[player_resources()()$uname==input$uname]>0){
+                  tagList(
+                    h3("Roll the dice or play a knight"),
+                    actionButton("roll_dice", "Roll the dice"),
+                    actionButton("play_knight", "Play a knight")
+                  )
+                } else {
+                  tagList(
+                    h3("Roll the dice to begin your turn"),
+                    actionButton("roll_dice", "Roll the dice")
+                  )
+                }
               } else {
-                tagList(
-                  h3("Build, offer a trade, or end your turn."),
+                top_taglist <- tagList(
+                  h3("Choose an action:"),
                   actionButton("build_here", "Build here", disabled = TRUE),
-                  actionButton("offer_trade", "Offer a trade"),
-                  actionButton("end_turn", "End turn"),
-                  div(class = "scrollable-log", verbatimTextOutput("game_log")),
-                  tableOutput("resource_counts")
+                  actionButton("offer_trade", "Offer a trade")
                 )
+                if(all(player_resources()()[player_resources()()$uname==input$uname, c("wheat", "wool", "ore")]>0)){
+                  top_taglist <- c(top_taglist, tagList(actionButton("buy_devcard", "Buy a development card")))
+                }
+                if(player_resources()()$knights[player_resources()()$uname==input$uname]>0){
+                  top_taglist <- c(top_taglist, tagList(actionButton("play_knight", "Play a knight")))
+                }
+                top_taglist <- c(top_taglist, tagList(actionButton("end_turn", "End turn")))
               }
-            }
+            },
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
+            tableOutput("resource_counts")
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
@@ -644,7 +654,7 @@ server <- function(input, output, session){
     player_resources()()
   })
   
-  # Activate input$game_id-dependent reactives ----
+  # observeEvent reactives()() that are input$game_id-dependent ----
   observeEvent(build_list()(), {
     print(paste("build_list()() triggered for", input$uname))
     
@@ -740,7 +750,7 @@ server <- function(input, output, session){
     }
     
     if(input$uname==getGameData("current_player")){
-      if(getGameData("dice_rolled") | game_status()()=="setup"){
+      if(getGameData("dice_rolled") | game_status()()=="setup" | robber_active()){
         print(paste("Adding clickables to map for", input$uname))
         static_marker_data <- marker_data()()
         city_spots <- getGameData("build_list")
@@ -1217,12 +1227,15 @@ server <- function(input, output, session){
         merge(resource_layout[c("id", "hex_resources", "pip")]) %>%
         .[.$hex_resources!="snow",] %>%
         .[.$pip==number_rolled,] %>%
-        .[.$id!=robber_face_id]
+        .[.$id!=robber_face_id,]
+      dput(unlist_resources)
+      
       if(nrow(unlist_resources)>0){
+        print("Logging resource allocation")
         for(player_i in unique(unlist_resources$owner)){
-          p_res <- table(unlist_resources)[player_i,]
-          p_res <- p_res[p_res>0]
-          gameLog(paste(player_i, "received", paste(p_res, names(p_res), collapse = " and ")))
+          p_res <- table(unlist_resources$owner, unlist_resources$hex_resources)[player_i,,drop=FALSE]
+          p_res <- p_res[, p_res>0, drop=FALSE]
+          gameLog(paste(player_i, "received", paste(p_res, colnames(p_res), collapse = " and ")))
         }
       }
       
@@ -1306,6 +1319,36 @@ server <- function(input, output, session){
     
     print("Updating marker_data()()")
     setGameData("marker_data", getBuildSpots())
+  })
+  observeEvent(input$buy_devcard, {
+    static_player_resources <- getGameData("player_resources")
+    static_player_resources[static_player_resources$uname==input$uname, c("wool", "wheat", "ore")] <- 
+      static_player_resources[static_player_resources$uname==input$uname, c("wool", "wheat", "ore")]-1
+    dev_res <- sample(c(rep("knight", 3), "vp"), 1)
+    if(dev_res=="knight"){
+      static_player_resources[static_player_resources$uname==input$uname, "knights"] <- 
+        static_player_resources[static_player_resources$uname==input$uname, "knights"]+1
+    } else {
+      static_player_resources[static_player_resources$uname==input$uname, "vp"] <- 
+        static_player_resources[static_player_resources$uname==input$uname, "vp"]+1
+    }
+    setGameData("player_resources", static_player_resources)
+    gameLog(paste(input$uname, "bought a development card"))
+  })
+  observeEvent(input$play_knight, {
+    print("Knight played!")
+    static_player_resources <- getGameData("player_resources")
+    static_player_resources[static_player_resources$uname==input$uname, "knights"] <- 
+      static_player_resources[static_player_resources$uname==input$uname, "knights"]-1
+    setGameData("player_resources", static_player_resources)
+    
+    face_markers <- marker_data_all[marker_data_all$lab=="face",]
+    face_markers <- moveMarkerOutward(face_markers, 1.5)
+    setGameData("marker_data", face_markers)
+    
+    robber_active(TRUE)
+    gameLog(paste(input$uname, "played a knight"))
+    return(NULL)
   })
   observeEvent(input$end_turn, {
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
@@ -1402,11 +1445,11 @@ server <- function(input, output, session){
 }
 
 
-if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
-if(!dir.exists("game_files"))dir.create("game_files")
-if(!file.exists("game_files/existing_game_ids.rds")){
-  saveRDS("ABC", "game_files/existing_game_ids.rds")
-}
+# if(dir.exists("game_files"))unlink("game_files", recursive = TRUE)
+# if(!dir.exists("game_files"))dir.create("game_files")
+# if(!file.exists("game_files/existing_game_ids.rds")){
+#   saveRDS("ABC", "game_files/existing_game_ids.rds")
+# }
 browseURL("http://127.0.0.1:5013/")
 browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
