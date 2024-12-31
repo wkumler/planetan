@@ -424,7 +424,7 @@ server <- function(input, output, session){
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
-            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
+            # div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       } else {
@@ -438,7 +438,7 @@ server <- function(input, output, session){
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
-            div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
+            # div(id = "options-container", checkboxInput("rotate_world", label = "Auto rotate?", value=FALSE))
           )
         )
       }
