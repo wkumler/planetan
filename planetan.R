@@ -450,6 +450,7 @@ server <- function(input, output, session){
       curp_color <- color_table[color_table$uname==current_player()(),"pcolor"]
       curp_span <- span(style=paste0("color: ", curp_color, ";"), current_player()())
       my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+      colnames(my_res) <- sapply(colnames(my_res), function(x)paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x))))
       output$my_res <- renderTable(my_res)
       p_status <- merge(player_resources()(), init_player_list()())
 
@@ -543,6 +544,7 @@ server <- function(input, output, session){
         if(current_player()()==input$uname){
           print("Returning trade_setup_div")
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+          colnames(my_res) <- sapply(colnames(my_res), function(x)paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x))))
           output$my_res <- renderTable(my_res)
           trade_setup_div <- div(
             class = "center-both",
@@ -622,6 +624,7 @@ server <- function(input, output, session){
         }
         if(current_player()()!=input$uname){
           my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+          colnames(my_res) <- sapply(colnames(my_res), function(x)paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x))))
           output$my_res <- renderTable(my_res)
           top_taglist <- tagList(
             h3(paste0("Make this trade with ", current_player()(), "?")),
