@@ -17,6 +17,9 @@ body {
   align-items: center;
   height: 100%;
   flex-direction: column; /* Ensures vertical stacking of button and label */
+  font-weight: bold;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 .btn-default {

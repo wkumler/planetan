@@ -419,7 +419,8 @@ server <- function(input, output, session){
             h4(paste("Game ID:", input$game_id)),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
-            div(class = "scrollable-log", verbatimTextOutput("game_log"))
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
+            width=3
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
@@ -432,7 +433,8 @@ server <- function(input, output, session){
             h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
             h4("Waiting for ", curp_span, " to choose setup spots."),
-            div(class = "scrollable-log", verbatimTextOutput("game_log"))
+            div(class = "scrollable-log", verbatimTextOutput("game_log")),
+            width=3
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
@@ -529,7 +531,8 @@ server <- function(input, output, session){
               "</tbody></table></div>"
             )),
             h4("Current resources:"),
-            tableOutput("my_res")
+            tableOutput("my_res"),
+            width=3
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
@@ -1422,6 +1425,7 @@ server <- function(input, output, session){
     setGameData("current_player", next_player)
     
     setGameData("dice_rolled", FALSE)
+    gameLog(paste(input$uname, "ended their turn"))
   })
   
   # Trade related observeEvents and reactives ----
@@ -1500,6 +1504,15 @@ server <- function(input, output, session){
                               c("wood", "brick", "wool", "wheat", "ore")] - proposed_trade()()
     setGameData("player_resources", static_player_resources)
     trade_responses <- data.frame(uname=init_player_list()()$uname, response="Undecided")
+    
+    given_res <- proposed_trade()()[, proposed_trade()()>0, drop=FALSE]
+    given_res_summary <- paste(given_res, names(given_res), collapse = " and ")
+    gameLog(paste(input$uname, "received", given_res_summary, "from", input$trade_partner))
+    
+    gotten_res <- proposed_trade()()[, proposed_trade()()<0, drop=FALSE]
+    gotten_res_summary <- paste(-gotten_res, names(gotten_res), collapse = " and ")
+    gameLog(paste(input$trade_partner, "received", gotten_res_summary, "from", input$uname))
+
     setGameData("trade_responses", trade_responses)
     setGameData("trade_status", "init_deciding")
     setGameData("game_status", "gameplay")
