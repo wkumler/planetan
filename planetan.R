@@ -415,12 +415,11 @@ server <- function(input, output, session){
       if(input$uname==current_player()()){
         setup_div <- tagList(
           sidebarPanel(
-            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
             h3("Choose a starting location by clicking on the globe."),
             actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
-            div(class = "scrollable-log", verbatimTextOutput("game_log")),
-            tableOutput("resource_counts")
+            div(class = "scrollable-log", verbatimTextOutput("game_log"))
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
@@ -430,11 +429,10 @@ server <- function(input, output, session){
       } else {
         setup_div <- tagList(
           sidebarPanel(
-            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
-            h3("Waiting for ", curp_span, " to choose setup spots."),
-            div(class = "scrollable-log", verbatimTextOutput("game_log")),
-            tableOutput("resource_counts")
+            h4("Waiting for ", curp_span, " to choose setup spots."),
+            div(class = "scrollable-log", verbatimTextOutput("game_log"))
           ),
           mainPanel(
             plotlyOutput("setup_game_world", height = "100vh"),
@@ -451,11 +449,14 @@ server <- function(input, output, session){
       uname_span <- span(style=paste0("color: ", player_color, ";"), input$uname)
       curp_color <- color_table[color_table$uname==current_player()(),"pcolor"]
       curp_span <- span(style=paste0("color: ", curp_color, ";"), current_player()())
-      
+      my_res <- player_resources()()[player_resources()()$uname==input$uname,c("wood", "brick", "wool", "wheat", "ore")]
+      output$my_res <- renderTable(my_res)
+      p_status <- merge(player_resources()(), init_player_list()())
+
       if(input$uname==current_player()()){
         gameplay_div <- tagList(
           sidebarPanel(
-            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
             if(robber_active()){
               tagList(
@@ -472,7 +473,7 @@ server <- function(input, output, session){
                   )
                 } else {
                   tagList(
-                    h3("Roll the dice to begin your turn"),
+                    h3(HTML("Roll the dice to begin your&nbsp;turn")),
                     actionButton("roll_dice", "Roll the dice")
                   )
                 }
@@ -492,7 +493,18 @@ server <- function(input, output, session){
               }
             },
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
-            tableOutput("resource_counts")
+            HTML(paste0(
+              "<div style='margin-top:20px;'>",
+              "<table class='custom-table'><thead><tr>",
+              paste0("<th style='color:", c("transparent", p_status$pcolor), ";'>", c("", p_status$uname), "</th>", collapse = ""), "</tr>",
+              "</thead><tbody>",
+              "<tr><td>Victory Points</td>", paste0("<td>", p_status$vp, "</td>", collapse = ""), "</tr>",
+              "<tr><td>Dev Cards</td>", paste0("<td>", p_status$knights, "</td>", collapse = ""), "</tr>",
+              "</tbody></table></div>"
+            )),
+            h4("Current resources:"),
+            tableOutput("my_res"),
+            width=3
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
@@ -502,11 +514,21 @@ server <- function(input, output, session){
       } else {
         gameplay_div <- tagList(
           sidebarPanel(
-            h3("Welcome to Planetan, ", uname_span, "!"),
+            h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
-            h3("Waiting for ", curp_span, " to finish their turn."),
+            h4("Waiting for ", curp_span, " to finish their turn."),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
-            tableOutput("resource_counts")
+            HTML(paste0(
+              "<div style='margin-top:20px;'>",
+              "<table class='custom-table'><thead><tr>",
+              paste0("<th style='color:", c("transparent", p_status$pcolor), ";'>", c("", p_status$uname), "</th>", collapse = ""), "</tr>",
+              "</thead><tbody>",
+              "<tr><td>Victory Points</td>", paste0("<td>", p_status$vp, "</td>", collapse = ""), "</tr>",
+              "<tr><td>Dev Cards</td>", paste0("<td>", p_status$knights, "</td>", collapse = ""), "</tr>",
+              "</tbody></table></div>"
+            )),
+            h4("Current resources:"),
+            tableOutput("my_res")
           ),
           mainPanel(
             plotlyOutput("game_world", height = "100vh"),
@@ -655,10 +677,6 @@ server <- function(input, output, session){
     }
     div(class = "center-both", wellPanel(h3("Loading world, please wait...")))
   }) # end output$visible_screen
-  output$resource_counts <- renderTable({
-    print("Rendering player_resources as a table!")
-    player_resources()()
-  })
   
   # observeEvent reactives()() that are input$game_id-dependent ----
   observeEvent(build_list()(), {

@@ -74,10 +74,27 @@ body {
   text-align: center;
 }
 
-
 .resource-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.custom-table {
+  border-collapse: collapse;
+  border: 1px solid #ddd;
+  width: 100%;
+}
+
+.custom-table th, .custom-table td {
+  padding: 5px;
+  text-align: center;
+  border-right: 1px solid #ddd;
+  border-left: 1px solid #ddd;
+}
+
+.custom-table td:first-child {
+  text-align: left;
+  font-weight: bold;
 }
