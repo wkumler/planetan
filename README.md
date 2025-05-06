@@ -1,9 +1,9 @@
 Welcome to [`planetan`](https://wkumler.shinyapps.io/planetan/)!
 ================
 
-## Colonize an entire low-poly planet!
+<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto;">
 
-<img src="readme_files/rotation_lossy.webp" style="float: right; margin-left: 10px; width: 60%; height: auto;">
+## Colonize an entire low-poly planet!
 
 `planetan` is a game about colonization. Claim resources from the tiles
 you’ve settled on to build new roads and settlements elsewhere on the
@@ -18,15 +18,13 @@ cities or by getting lucky when drawing development cards. Be careful
 though - your competition may become your only way to trade for precious
 resources!
 
-<div style="clear: both;">
+<div clear="right"/>
 
-</div>
+<img src="readme_files/gameplay_ss.png">
 
-<img src="readme_files/gameplay_ss.png" style="height: auto;">
+<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto;">
 
 ## Synchronous and asynchronous gameplay
-
-<img src="readme_files/start_screenshot.png" style="float: right; max-width: 30%; height: auto;">
 
 Not all online at the same time? Start a game whenever, send friends the
 secret code, and log in whenever - your progress is saved automatically
