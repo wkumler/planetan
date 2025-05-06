@@ -13,26 +13,27 @@ knitr::opts_chunk$set(echo = FALSE)
 library(plotly)
 
 globe_plates <- readRDS("readme_files/demo_world.rds")
-
-set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1.05, 1.05),
-                 autorange=FALSE, showspikes=FALSE,
-                 showgrid=FALSE, zeroline=FALSE, visible=FALSE)
-camera_eye <- function() {
-  theta <- runif(1, 0, 2 * pi)
-  c(1.2 * cos(theta), 1.2 * sin(theta))
-}
-start_camera <- camera_eye()
-
-
+all_builds <- readRDS("readme_files/demo_builds.rds")
 
 theta <- seq(0, 6 * pi, length.out = 720) 
 r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
 cam_coords <- data.frame(x = r*cos(theta), y = r*sin(theta), z = 0.8*sin(theta/3))
-base_ply <- plot_ly(source = "setup_game_world") %>%
+
+set_axis <- list(range=max(abs(globe_plates$vertices))*c(-1.05, 1.05),
+                 autorange=FALSE, showspikes=FALSE,
+                 showgrid=FALSE, zeroline=FALSE, visible=FALSE)
+base_ply <- plot_ly() %>%
   add_trace(type="mesh3d", data = globe_plates,
             x=~vertices$x, y=~vertices$y, z=~vertices$z,
             i=~faces$i, j=~faces$j, k=~faces$k,
             facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
+                          maxColorValue = 255),
+            lighting=list(diffuse=1),
+            hoverinfo="none") %>%
+  add_trace(type="mesh3d", data = all_builds,
+            x=~vertices$x, y=~vertices$y, z=~vertices$z,
+            i=~faces$i, j=~faces$j, k=~faces$k,
+            facecolor=rgb(t(col2rgb(all_builds$faces$color)),
                           maxColorValue = 255),
             lighting=list(diffuse=1),
             hoverinfo="none")
@@ -49,30 +50,32 @@ for(i in seq(1, 720)){
     config(displayModeBar = FALSE)
   orca(ply, file = sprintf("readme_files/frame%03d.png", i))
   i <- (i + 1) %% 720
+  print(i)
 }
 
 
-
-
 library(magick)
-imgs <- image_read(list.files("frames", full.names=TRUE, pattern = "\\.png$"))
-webp_anim <- image_animate(imgs, fps = 20, optimize = TRUE)
-webp_anim <- image_trim(webp_anim)
+img_paths <- list.files("readme_files", full.names=TRUE, pattern = "frame\\d+\\.png$")
+imgs <- image_read(img_paths)
+
+webp_anim <- image_animate(imgs, fps = 15, optimize = TRUE)
 image_write(webp_anim, "rotation_lossy.webp", format = "webp")
 image_write(webp_anim, "rotation_full.webp", format = "webp", defines = c("webp:lossless"="true"))
 
+webp_anim <- image_trim(webp_anim)
+image_write(webp_anim, "rotation_trimmed.webp", format = "webp")
 
 smoothed <- image_morph(imgs, frames = length(imgs) * 2)
-webp_anim <- image_animate(imgs, fps = 40, optimize = TRUE)
+webp_anim <- image_animate(imgs, fps = 30, optimize = TRUE)
 webp_anim <- image_trim(webp_anim)
 image_write(webp_anim, "rotation_smoothed.webp", format = "webp", defines = c("webp:lossless"="true"))
 
-# file.remove(list.files("frames", full.names=TRUE, pattern = "\\.png$"))
+# file.remove(img_paths)
 ```
 
-## Colonize the entire low-poly planet!
+## Colonize an entire low-poly planet!
 
-<img src="readme_files/rotation_lossy.webp" style="float: right; margin-left: 10px; max-width: 50%; height: auto;">
+<img src="readme_files/rotation_lossy.webp" style="float: right; margin-left: 10px; width: 50%; height: auto;">
 
 `planetan` is a game about colonization. Claim resources from the tiles you've settled on to build new roads and settlements elsewhere on the globe. Upgrade your settlements to cities with ore and wheat to double your income from them!
 
@@ -82,11 +85,11 @@ Team up with your friends anywhere in the world and challenge each other to achi
 
 <div style="clear: both;"></div>
 
-<img src="readme_files/gameplay_ss.png" style="height: auto;">
+<img src="readme_files/gameplay_ss.png">
 
 ## Synchronous and asynchronous gameplay
 
-<img src="readme_files/start_screenshot.png" style="float: right; max-width: 30%; height: auto;">
+<img src="readme_files/start_screenshot.png" style="float: right; width: 40%; height: auto;">
 
 Not all online at the same time? Start a game whenever, send friends the secret code, and log in whenever - your progress is saved automatically and can be restarted whenever you've got time.
 

@@ -1,9 +1,9 @@
 Welcome to [`planetan`](https://wkumler.shinyapps.io/planetan/)!
 ================
 
-## Colonize the entire low-poly planet!
+## Colonize an entire low-poly planet!
 
-<img src="readme_files/rotation_lossy.webp" style="float: right; margin-left: 10px; max-width: 55%; height: auto;">
+<img src="readme_files/rotation_lossy.webp" style="float: right; margin-left: 10px; width: 60%; height: auto;">
 
 `planetan` is a game about colonization. Claim resources from the tiles
 you’ve settled on to build new roads and settlements elsewhere on the
