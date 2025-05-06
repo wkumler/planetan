@@ -73,7 +73,7 @@ image_write(webp_anim, "rotation_smoothed.webp", format = "webp", defines = c("w
 # file.remove(img_paths)
 ```
 
-<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto;">
+<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto; z-index: 1000;">
 
 ## Colonize an entire low-poly planet!
 
@@ -87,7 +87,7 @@ Team up with your friends anywhere in the world and challenge each other to achi
 
 <img src="readme_files/gameplay_ss.png">
 
-<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto;">
+<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto; z-index: 1000;">
 
 ## Synchronous and asynchronous gameplay
 

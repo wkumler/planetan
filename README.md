@@ -1,7 +1,7 @@
 Welcome to [`planetan`](https://wkumler.shinyapps.io/planetan/)!
 ================
 
-<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto;">
+<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto; z-index: 1000;">
 
 ## Colonize an entire low-poly planet!
 
@@ -22,7 +22,7 @@ resources!
 
 <img src="readme_files/gameplay_ss.png">
 
-<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto;">
+<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto; z-index: 1000;">
 
 ## Synchronous and asynchronous gameplay
 
