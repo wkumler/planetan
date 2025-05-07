@@ -5,6 +5,9 @@ body {
 }
 
 .center-both {
+  position: relative;
+  background: url('rotation_highdef.webp') no-repeat center center;
+  background-size: cover;
   display: flex;
   justify-content: center;
   align-items: center;
