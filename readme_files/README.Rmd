@@ -58,7 +58,7 @@ library(magick)
 img_paths <- list.files("readme_files/highdef_frames", full.names=TRUE, pattern = "frame\\d+\\.png$")
 imgs <- image_read(img_paths)
 webp_anim <- image_animate(imgs, fps = 20)
-image_write(webp_anim, "readme_files/rotation_highdef.webp", format = "webp")
+image_write(webp_anim, "www/rotation_highdef.webp", format = "webp")
 
 img_paths <- list.files("readme_files/lowdef_frames", full.names=TRUE, pattern = "frame\\d+\\.png$")
 imgs <- image_read(img_paths)
