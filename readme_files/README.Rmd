@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(plotly)
 
 globe_plates <- readRDS("readme_files/demo_world.rds")
-all_builds <- readRDS("readme_files/demo_builds.rds")
+# all_builds <- readRDS("readme_files/demo_builds.rds")
 
 theta <- seq(0, 6 * pi, length.out = 720) 
 r <- sqrt(1.5^2 - (0.8*sin(theta/3))^2)
@@ -29,14 +29,14 @@ base_ply <- plot_ly() %>%
             facecolor=rgb(t(col2rgb(globe_plates$faces$color)),
                           maxColorValue = 255),
             lighting=list(diffuse=1),
-            hoverinfo="none") %>%
-  add_trace(type="mesh3d", data = all_builds,
-            x=~vertices$x, y=~vertices$y, z=~vertices$z,
-            i=~faces$i, j=~faces$j, k=~faces$k,
-            facecolor=rgb(t(col2rgb(all_builds$faces$color)),
-                          maxColorValue = 255),
-            lighting=list(diffuse=1),
             hoverinfo="none")
+  # add_trace(type="mesh3d", data = all_builds,
+  #           x=~vertices$x, y=~vertices$y, z=~vertices$z,
+  #           i=~faces$i, j=~faces$j, k=~faces$k,
+  #           facecolor=rgb(t(col2rgb(all_builds$faces$color)),
+  #                         maxColorValue = 255),
+  #           lighting=list(diffuse=1),
+  #           hoverinfo="none")
 for(i in seq(1, 720)){
   ply <- base_ply %>%
     layout(scene=list(
@@ -48,32 +48,33 @@ for(i in seq(1, 720)){
     margin=list(l=0, r=0, b=0, t=0, pad=0),
     showlegend=FALSE) %>%
     config(displayModeBar = FALSE)
-  orca(ply, file = sprintf("readme_files/frame%03d.png", i))
+  orca(ply, file = sprintf("readme_files/lowdef_frames/frame%03d.png", i), width = 500, height = 500)
+  orca(ply, file = sprintf("readme_files/highdef_frames/frame%03d.png", i), width = 1280, height = 720)
   i <- (i + 1) %% 720
   print(i)
 }
 
-
 library(magick)
-img_paths <- list.files("readme_files", full.names=TRUE, pattern = "frame\\d+\\.png$")
+img_paths <- list.files("readme_files/highdef_frames", full.names=TRUE, pattern = "frame\\d+\\.png$")
 imgs <- image_read(img_paths)
+webp_anim <- image_animate(imgs, fps = 20)
+image_write(webp_anim, "readme_files/rotation_highdef.webp", format = "webp")
 
-webp_anim <- image_animate(imgs, fps = 15, optimize = TRUE)
-image_write(webp_anim, "rotation_lossy.webp", format = "webp")
-image_write(webp_anim, "rotation_full.webp", format = "webp", defines = c("webp:lossless"="true"))
+img_paths <- list.files("readme_files/lowdef_frames", full.names=TRUE, pattern = "frame\\d+\\.png$")
+imgs <- image_read(img_paths)
+webp_anim <- image_animate(imgs, fps = 20)
+image_write(webp_anim, "readme_files/rotation_lowdef.webp", format = "webp")
 
-webp_anim <- image_trim(webp_anim)
-image_write(webp_anim, "rotation_trimmed.webp", format = "webp")
+# img_paths <- list.files("readme_files/lowdef_frames", full.names=TRUE, pattern = "frame\\d+\\.png$")
+# imgs <- image_read(img_paths[c(TRUE, FALSE)])
+# webp_anim <- image_animate(imgs, fps = 10)
+# image_write(webp_anim, "readme_files/rotation_ultralowdef.webp", format = "webp")
 
-smoothed <- image_morph(imgs, frames = length(imgs) * 2)
-webp_anim <- image_animate(imgs, fps = 30, optimize = TRUE)
-webp_anim <- image_trim(webp_anim)
-image_write(webp_anim, "rotation_smoothed.webp", format = "webp", defines = c("webp:lossless"="true"))
 
 # file.remove(img_paths)
 ```
 
-<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto;">
+<img src="readme_files/rotation_lowdef.webp" align="right" style="width: 40%; height: auto;">
 
 <summary><h2>Colonize an entire low-poly planet!</h2></summary>
 
@@ -87,12 +88,11 @@ Team up with your friends anywhere in the world and challenge each other to achi
 
 <img src="readme_files/gameplay_ss.png">
 
-<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto;">
+<img src="readme_files/start_screenshot.png" align="right" style="width: 40%; height: auto;">
 
 <summary><h2>Synchronous and asynchronous gameplay</h2></summary>
 
 Not all online at the same time? Start a game whenever, send friends the secret code, and log in whenever - your progress is saved automatically and can be restarted whenever you've got time.
 
-<summary><h2>Get started online at https://wkumler.shinyapps.io/planetan/</h2></summary>
-
+<summary><h2>Get started online at <a href="https://wkumler.shinyapps.io/planetan" target="_blank"> wkumler.shinyapps.io/planetan</a></h2></summary>
 ...at least until I run out of Shinyapps hours!

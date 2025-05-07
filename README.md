@@ -1,7 +1,7 @@
 Welcome to [`planetan`](https://wkumler.shinyapps.io/planetan/)!
 ================
 
-<img src="readme_files/rotation_lossy.webp" align="right" style="width: 40%; height: auto;">
+<img src="readme_files/rotation_lowdef.webp" align="right" style="width: 40%; height: auto;">
 
 <summary>
 <h2>
@@ -30,7 +30,7 @@ resources!
 
 <img src="readme_files/gameplay_ss.png">
 
-<img src="readme_files/start_screenshot.png" align="right" style="width: 30%; height: auto;">
+<img src="readme_files/start_screenshot.png" align="right" style="width: 40%; height: auto;">
 
 <summary>
 <h2>
@@ -44,7 +44,9 @@ and can be restarted whenever you’ve got time.
 
 <summary>
 <h2>
-Get started online at <https://wkumler.shinyapps.io/planetan/>
+Get started online at
+<a href="https://wkumler.shinyapps.io/planetan" target="_blank">
+wkumler.shinyapps.io/planetan</a>
 </h2>
 </summary>
 
