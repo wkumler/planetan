@@ -981,7 +981,7 @@ server <- function(input, output, session){
     )
     setGameData("player_resources", data.frame(
       uname=init_player_list()()$uname, vp=2, knights=0,
-      wood=5, brick=5, wool=5, wheat=5, ore=6
+      wood=0, brick=0, wool=0, wheat=0, ore=0
     ))
     setGameData("dice_rolled", FALSE)
     setGameData("trade_status", "init_deciding")
