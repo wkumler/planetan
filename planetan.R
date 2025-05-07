@@ -253,7 +253,7 @@ server <- function(input, output, session){
           textInput("uname", label = "Username:", value = "admin"), #remove value eventually
           p("That username is already taken! Choose a different one.", style="color:red;"),
           textInput("pwd", label = "Password:", value = "password"), #remove value eventually
-          actionButton("rejoin_existing_game", "Join game")
+          actionButton("join_waiting_room", "Join game")
         )
       )
       return(uname_already_taken_div)
