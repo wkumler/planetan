@@ -854,10 +854,10 @@ server <- function(input, output, session){
     setGameData("init_player_list", data.frame(uname=input$uname, pwd=input$pwd))
     setGameData("color_table", data.frame(uname=input$uname, pcolor="#FF0000"))
     
-    # resource_layout <- getRandomGlobeLayout()
-    # built_world <- worldbuilder(resource_layout)
-    resource_layout <- readRDS("debug_resource_layout.rds")
-    built_world <- readRDS("debug_globe_plates.rds")
+    resource_layout <- getRandomGlobeLayout()
+    built_world <- worldbuilder(resource_layout)
+    # resource_layout <- readRDS("debug_resource_layout.rds")
+    # built_world <- readRDS("debug_globe_plates.rds")
     setGameData("resource_layout", resource_layout, print_value = FALSE)
     setGameData("globe_plates", built_world, print_value = FALSE)
     
