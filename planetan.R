@@ -143,7 +143,7 @@ server <- function(input, output, session){
       startup_div <- div(
         class = "center-both",
         wellPanel(
-          h3("Welcome to Planetan!"),
+          h2("Welcome to Planetan!"),
           actionButton("new_game_button", "Host new game"),
           actionButton("join_game_button", "Join existing"),
         )
@@ -236,7 +236,7 @@ server <- function(input, output, session){
           class = "center-both",
           wellPanel(
             h3("Provide your username and password"),
-            textInput("uname", label = "Username:", value = "newplayer"), #change back to newplayer eventually
+            textInput("uname", label = "Username:", value = "admin"), #change back to newplayer eventually
             textInput("pwd", label = "Password:", value = "password"), #change back to alsopassword eventually
             actionButton("rejoin_existing_game", "Join game")
           )
@@ -418,7 +418,7 @@ server <- function(input, output, session){
             h3(HTML(paste0("Welcome to Planetan, ", uname_span, "!"))),
             h4(paste("Game ID:", input$game_id)),
             h3("Choose a starting location by clicking on the globe."),
-            actionButton("build_here_setup", label = "Build here?", disabled = TRUE),
+            actionButton("build_here_setup", label = "Build here", disabled = TRUE),
             div(class = "scrollable-log", verbatimTextOutput("game_log")),
             width=3
           ),
@@ -1100,12 +1100,12 @@ server <- function(input, output, session){
 
     plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
-    updateActionButton(session, "build_here_setup", label = "Build here?", disabled = FALSE)
+    updateActionButton(session, "build_here_setup", label = "Build here", disabled = FALSE)
   })
   observeEvent(input$build_here_setup, {
     req(setup_ed()$key)
     print("input$build_here_setup clicked")
-    updateActionButton(session, "build_here_setup", label = "Build here?", disabled = TRUE)
+    updateActionButton(session, "build_here_setup", label = "Build here", disabled = TRUE)
     
     print("Updating build_list()()")
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
@@ -1253,9 +1253,9 @@ server <- function(input, output, session){
     plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
     
     if(robber_active()){
-      updateActionButton(session, "move_robber", "Move the robber here?", disabled = FALSE)
+      updateActionButton(session, "move_robber", "Move the robber here", disabled = FALSE)
     } else {
-      updateActionButton(session, "build_here", label = "Build here?", disabled = FALSE)
+      updateActionButton(session, "build_here", label = "Build here", disabled = FALSE)
     }
   })
   observeEvent(input$roll_dice, {
@@ -1349,7 +1349,7 @@ server <- function(input, output, session){
   observeEvent(input$build_here, {
     req(ed()$key)
     print("input$build_here clicked")
-    updateActionButton(session, "build_here", label = "Build here?", disabled = TRUE)
+    updateActionButton(session, "build_here", label = "Build here", disabled = TRUE)
     marker_data_unmoved <- getGameData("marker_data_unmoved", print_value = FALSE)
     build_spot <- marker_data_unmoved[ed()$key,]
     
@@ -1535,6 +1535,6 @@ server <- function(input, output, session){
 # if(!file.exists("game_files/existing_game_ids.rds")){
 #   saveRDS("ABC", "game_files/existing_game_ids.rds")
 # }
-browseURL("http://127.0.0.1:5013/")
-browseURL("http://127.0.0.1:5013/")
+# browseURL("http://127.0.0.1:5013/")
+# browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
