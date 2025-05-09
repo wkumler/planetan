@@ -600,6 +600,7 @@ server <- function(input, output, session){
                 actionButton("cancel_trade", label = "Cancel trade")
               )
             )
+            return(offered_div)
           }
           if(length(radio_options)==0){
             print("Nobody responded yet...")
@@ -611,6 +612,7 @@ server <- function(input, output, session){
                 actionButton("cancel_trade", label="Cancel")
               )
             )
+            return(offered_div)
           }
           offered_div <- div(
             class = "center-both",
