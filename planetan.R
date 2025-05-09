@@ -791,20 +791,35 @@ server <- function(input, output, session){
           static_marker_data[static_marker_data$id%in%city_spots,] <- 
             moveMarkerOutward(static_marker_data[static_marker_data$id%in%city_spots,], 1)
         }
-        static_marker_data$textlab <- ifelse(static_marker_data$lab=="edge", "road", 
-                                             ifelse(static_marker_data$id%in%city_spots, "city", "settlement"))
-        newtrace <- list(
-          x = as.list(static_marker_data$x),
-          y = as.list(static_marker_data$y),
-          z = as.list(static_marker_data$z),
-          key = as.list(static_marker_data$id),
-          text = as.list(static_marker_data$textlab), 
-          hoverinfo = "text",
-          hovertemplate=paste0("Build a %{text}?<extra></extra>"),
-          type = "scatter3d",
-          mode = "markers",
-          marker = list(color="white", opacity=0.1, size=50)
-        )
+        if(robber_active()){
+          newtrace <- list(
+            x = as.list(static_marker_data$x),
+            y = as.list(static_marker_data$y),
+            z = as.list(static_marker_data$z),
+            key = as.list(static_marker_data$id),
+            text = as.list("robber"), 
+            hoverinfo = "text",
+            hovertemplate=paste0("Move %{text} here?<extra></extra>"),
+            type = "scatter3d",
+            mode = "markers",
+            marker = list(color="white", opacity=0.1, size=50)
+          )
+        } else {
+          static_marker_data$textlab <- ifelse(static_marker_data$lab=="edge", "road", 
+                                               ifelse(static_marker_data$id%in%city_spots, "city", "settlement"))
+          newtrace <- list(
+            x = as.list(static_marker_data$x),
+            y = as.list(static_marker_data$y),
+            z = as.list(static_marker_data$z),
+            key = as.list(static_marker_data$id),
+            text = as.list(static_marker_data$textlab), 
+            hoverinfo = "text",
+            hovertemplate=paste0("Build a %{text}?<extra></extra>"),
+            type = "scatter3d",
+            mode = "markers",
+            marker = list(color="white", opacity=0.1, size=50)
+          )
+        }
         plotlyProxy("setup_game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
         plotlyProxy("game_world") %>% plotlyProxyInvoke("addTraces", newtrace)
       }
@@ -1537,6 +1552,6 @@ server <- function(input, output, session){
 # if(!file.exists("game_files/existing_game_ids.rds")){
 #   saveRDS("ABC", "game_files/existing_game_ids.rds")
 # }
-# browseURL("http://127.0.0.1:5013/")
-# browseURL("http://127.0.0.1:5013/")
+browseURL("http://127.0.0.1:5013/")
+browseURL("http://127.0.0.1:5013/")
 shinyApp(ui, server, options = list(launch.browser=TRUE, port=5013))
