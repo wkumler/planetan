@@ -1,7 +1,11 @@
-/* styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
 body {
-  background-color: black;
+  background-color: #0a0a0a;
+  font-family: 'Orbitron', sans-serif;
+  color: #dcdcdc;
+  margin: 0;
+  padding: 20px;
 }
 
 .center-both {
@@ -19,23 +23,171 @@ body {
   justify-content: center;
   align-items: center;
   height: 100%;
-  flex-direction: column; /* Ensures vertical stacking of button and label */
+  flex-direction: column;
   font-weight: bold;
   margin-top: 5px;
   margin-bottom: 5px;
 }
 
-.btn-default {
-  width: 100%;
+h1, h2, h3 {
+  color: #e0e0e0;
+  text-align: center;
+  text-shadow: 0 0 1px #ccc, 0 0 2px #aaa;
+  border-bottom: 1px solid #999;
+  padding-bottom: 5px;
+  border-radius: 0;
 }
 
-.custom-button-padding {
-  padding-left: 24px;
-  padding-right: 24px;
+.well, .wellPanel, .panel, .retro-container {
+  background: linear-gradient(145deg, #1b1b1b, #101010);
+  border: 2px solid #c0c0c0;
+  border-radius: 2px;
+  padding: 20px;
+  box-shadow:
+    inset 0 0 0px rgba(255, 255, 255, 0),
+    0 0 0px rgba(192, 192, 192, 0);
+  position: relative;
+}
+.well::before, .wellPanel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 10px; right: 10px; bottom: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.02),
+    rgba(255,255,255,0.02) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+  pointer-events: none;
+}
+
+button, .btn, .btn-default {
+  background: linear-gradient(to bottom, #555, #1e1e1e);
+  border: 2px solid #aaa;
+  color: #f0f0f0;
+  padding: 10px 24px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 0;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+button:hover, .btn:hover {
+  background: linear-gradient(to bottom, #666, #2a2a2a);
+  color: #ffffff;
+  border-color: #f0f0f0;
+}
+
+input[type="text"], input[type="number"], textarea, select {
+  background: #0c0c0c;
+  border: 2px solid #888;
+  color: #eee;
+  padding: 10px;
+  border-radius: 2px;
+  font-family: 'Orbitron', sans-serif;
+  width: 100%;
+  box-shadow: none;
+}
+
+.radio label, .checkbox label {
+  background: #121212;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 2px;
+  border: 2px solid #666;
+  display: block;
+  cursor: pointer;
+  font-family: 'Orbitron', sans-serif;
+}
+input[type="radio"], input[type="checkbox"] {
+  accent-color: silver;
+}
+
+span {
+  font-weight: bold;
+  text-shadow: 0 0 1px #ccc;
+}
+
+pre, .verbatim-text-log {
+  background: #000000;
+  color: #eee;
+  font-family: monospace;
+  font-size: 1.3rem;
+  padding: 10px;
+  border: 2px solid #aaa;
+  box-shadow: 0 0 8px #888;
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+#game_log::-webkit-scrollbar {
+  width: 12px;
+}
+
+#game_log::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+
+#game_log::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #888, #444);
+  border: 1px solid #666;
+  border-radius: 0;
+}
+
+#game_log::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #aaa, #555);
+}
+
+
+.custom-table {
+  border-collapse: collapse;
+  border: 2px solid #888;
+  width: 100%;
+  background: #0d0d0d;
+  color: #ddd;
+  max-width: 250px;
+}
+
+.custom-table th, .custom-table td {
+  padding: 5px;
+  text-align: center;
+  border: 1px solid #444;
+}
+
+.custom-table td:first-child {
+  text-align: left;
+  font-weight: bold;
+}
+
+.shiny-input-container {
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.shiny-slider-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.resource-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.col-sm-3 {
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 #options-container {
-/*  background-color: black; */
   position: fixed;
   bottom: 20px;
   right: 20px;
@@ -45,12 +197,7 @@ body {
   color: white;
 }
 
-.scrollable-log {
-  width: 100%;
-  height: 150px;
-  overflow-y: scroll;
-}
-
+/* LEAVE THESE UNCHANGED — ORIGINAL FROM USER */
 .irs-min, .irs-max {
   display: none;
 }
@@ -68,48 +215,4 @@ body {
 }
 .irs--shiny .irs-grid {
   display: none;
-}
-
-.shiny-input-container {
-  text-align: center;
-  font-size: 1.75rem;
-}
-.shiny-slider-label {
-  display: block;
-  width: 100%;
-  text-align: center;
-}
-
-.resource-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.custom-table {
-  border-collapse: collapse;
-  border: 1px solid #ddd;
-  width: 100%;
-}
-
-.custom-table th, .custom-table td {
-  padding: 5px;
-  text-align: center;
-  border-right: 1px solid #ddd;
-  border-left: 1px solid #ddd;
-}
-
-.custom-table td:first-child {
-  text-align: left;
-  font-weight: bold;
-}
-
-h3 {
-  margin-top: 10px;
-}
-
-.col-sm-3 {
-  padding: 10px;
-  box-sizing: border-box;
 }
