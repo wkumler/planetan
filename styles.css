@@ -32,7 +32,6 @@ body {
 h1, h2, h3 {
   color: #e0e0e0;
   text-align: center;
-  text-shadow: 0 0 1px #ccc, 0 0 2px #aaa;
   border-bottom: 1px solid #999;
   padding-bottom: 5px;
   border-radius: 0;
@@ -47,6 +46,7 @@ h1, h2, h3 {
     inset 0 0 0px rgba(255, 255, 255, 0),
     0 0 0px rgba(192, 192, 192, 0);
   position: relative;
+  overflow-y: auto;
 }
 .well::before, .wellPanel::before {
   content: "";
@@ -108,7 +108,6 @@ input[type="radio"], input[type="checkbox"] {
 
 span {
   font-weight: bold;
-  text-shadow: 0 0 1px #ccc;
 }
 
 pre, .verbatim-text-log {
