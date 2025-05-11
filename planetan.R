@@ -799,7 +799,7 @@ server <- function(input, output, session){
             key = as.list(static_marker_data$id),
             text = as.list("robber"), 
             hoverinfo = "text",
-            hovertemplate=paste0("Move %{text} here?<extra></extra>"),
+            hovertemplate=paste0("Move robber here?<extra></extra>"),
             type = "scatter3d",
             mode = "markers",
             marker = list(color="white", opacity=0.1, size=50)
@@ -1252,10 +1252,14 @@ server <- function(input, output, session){
       } else {
         hovertext <- "Build a settlement here?"
       }
-    } else {
+    } else if(ed()$key%in%61:150) {
       hovertext <- "Build a road here?"
+    } else if(ed()$key%in%151:182) {
+      hovertext <- "Move the robber here?"
+    } else {
+      hovertext <- "Build here?" # Should never be seen
     }
-    
+
     plotlyProxy("game_world") %>% plotlyProxyInvoke("deleteTraces", list(3))
     newtrace <- list(x = list(ed()$x), 
                      y = list(ed()$y), 
